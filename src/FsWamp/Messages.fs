@@ -1,14 +1,8 @@
 ﻿module FsWamp.Messages
 open System
-
+open FsWamp.Common
 let join s (ss : string seq) =
     String.Join(s, ss)
-
-let split (s : string) =
-    s.Split([|","|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
-
-let getMessage (input : string) =
-    input.Substring(1, input.LastIndexOf(']') - 1) |> split
 
 let escapeJsonArray = getMessage
 let private welcomeMessageId = "0"
@@ -21,31 +15,31 @@ let private unsubscribeMessageId = "6"
 let private publishMessageId = "7"
 let private evenetMessageId = "8"
 
-let (|WELCOME|_|) (input : string) =
-    match input |> getMessage with
+let (|WELCOME|_|) (input : string list) =
+    match input with
         | [welcomeMessageId; sessionId; _; serverIdent] -> Some((sessionId, serverIdent))
         | _ -> None
 
-let (|PREFIX|_|) (input : string) =
-    match input |> getMessage with
+let (|PREFIX|_|) (input : string list) =
+    match input with
         | [prefixMessageId; prefix; uri] -> Some((prefix, uri))
         | _ -> None
 
-let (|CALL|_|) (input : string) =
-    let msg = input |> getMessage
+let (|CALL|_|) (input : string list) =
+    let msg = input
     match msg with
         | callErrorMessageId :: callId :: procUri :: args ->
             Some((callId, procUri, args))
         | _ -> None
 
-let (|CALLRESULT|_|) (input : string) =
-    let msg = input |> getMessage
+let (|CALLRESULT|_|) (input : string list) =
+    let msg = input
     match msg with
         | [callResultMessageId; callId; result] -> Some((callId, result))
         | _ -> None
 
-let (|CALLERROR|_|) (input : string) =
-    let msg = input |> getMessage
+let (|CALLERROR|_|) (input : string list) =
+    let msg = input
     match msg with
         | [callErrorMessageId; callId; errorUri; errorDesc] ->
             Some((callId, errorUri, errorDesc, ""))
@@ -53,22 +47,22 @@ let (|CALLERROR|_|) (input : string) =
             Some((callId, errorUri, errorDesc, errorDetails))
         | _ -> None
 
-let (|SUBSCRIBE|_|) (input : string) =
-    let msg = input |> getMessage
+let (|SUBSCRIBE|_|) (input : string list) =
+    let msg = input
     match msg with
         | [subscribeMessageId; topicUri] ->
             Some(topicUri)
         | _ -> None
 
-let (|EVENT|_|) (input : string) =
-    let msg = input |> getMessage
+let (|EVENT|_|) (input : string list) =
+    let msg = input
     match msg with
         | [evenetMessageId; topicUri; event] ->
             Some((topicUri, event))
         | _ -> None
 
-let (|PUBLISH|_|) (input : string) =
-    let msg = input |> getMessage
+let (|PUBLISH|_|) (input : string list) =
+    let msg = input
     match msg with
         | [publishMessageId; topicUri; event] ->
             Some((topicUri, event, false, [], []))

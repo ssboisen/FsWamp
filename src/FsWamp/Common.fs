@@ -12,6 +12,12 @@ type InvalidWampRpcCallException(callId : string, errorUri : string, errorDescri
   member this.ErrorUri = errorUri
   member this.ErrorDetails = errorDetails
 
+let split (s : string) =
+    s.Split([|","|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
+
+let getMessage (input : string) =
+    input.Substring(1, input.LastIndexOf(']') - 1) |> split
+
 let recv (ws : WebSocket) (ct : CancellationToken) =
     let rec recv' (acc : byte array) (ws : WebSocket) =
                 async {
@@ -19,9 +25,12 @@ let recv (ws : WebSocket) (ct : CancellationToken) =
                     let! result = ws.ReceiveAsync(buffer, ct) |> Async.AwaitTask
                     let data = if result.Count < buffer.Count then buffer.Array.[.. result.Count] else buffer.Array
                     let acc = Array.append acc data
-                    if result.EndOfMessage then
-                        return acc, result.MessageType
-                        else return! recv' acc ws
+                    match result.EndOfMessage, result.MessageType with
+                        | true, WebSocketMessageType.Text ->
+                            return Some(acc |> System.Text.UTF8Encoding.UTF8.GetString |> getMessage)
+                        | false, WebSocketMessageType.Text ->
+                            return! recv' acc ws
+                        | _ -> return None
                 }
     recv' [||] ws
 

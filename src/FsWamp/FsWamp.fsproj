@@ -43,8 +43,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="StateManagement.fs" />
-    <Compile Include="Messages.fs" />
     <Compile Include="Common.fs" />
+    <Compile Include="Messages.fs" />
     <Compile Include="Server.fs" />
     <Compile Include="Client.fs" />
     <Compile Include="CSharpFacade.fs" />

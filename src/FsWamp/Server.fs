@@ -15,30 +15,30 @@ let private processContext (context : HttpListenerContext) ct =
         do! welcome |> sendMessage
 
         while not ct.IsCancellationRequested do
-            let! (data, mt) = recv wsContext.WebSocket ct
-
-            if mt = WebSockets.WebSocketMessageType.Text then
-                let s = System.Text.UTF8Encoding.UTF8.GetString(data);
-                match s with
-                    | PREFIX (prefix, uri) ->
-                        printfn "Got prefixmessage with prefix: %s for uri: %s" prefix uri
-                    | CALL (callId, procUri, args) ->
-                        match procUri with
-                            | "add" ->
-                                let res = args |> Seq.map int |> Seq.sum |> string
-                                let callResult = callResultMessage callId res
-                                do! callResult |> sendMessage
-                            | _ ->
-                                let callError = callErrorMessage callId "error#unknown_function" "Unknown function: " procUri
-                                do! callError |> sendMessage
-                    | SUBSCRIBE (topicId) ->
-                        match topicId with
-                            | "seTopic" ->
-                                let event = eventMessage topicId "hello through event"
-                                do! event |> sendMessage
-                                printfn "send back an event"
-                            | _ -> ()
-                    | _ -> printfn "Got unknown message"
+            let! msg = recv wsContext.WebSocket ct
+            match msg with
+                | Some(msg) ->
+                    match msg with
+                        | PREFIX (prefix, uri) ->
+                            printfn "Got prefixmessage with prefix: %s for uri: %s" prefix uri
+                        | CALL (callId, procUri, args) ->
+                            match procUri with
+                                | "add" ->
+                                    let res = args |> Seq.map int |> Seq.sum |> string
+                                    let callResult = callResultMessage callId res
+                                    do! callResult |> sendMessage
+                                | _ ->
+                                    let callError = callErrorMessage callId "error#unknown_function" "Unknown function: " procUri
+                                    do! callError |> sendMessage
+                        | SUBSCRIBE (topicId) ->
+                            match topicId with
+                                | "seTopic" ->
+                                    let event = eventMessage topicId "hello through event"
+                                    do! event |> sendMessage
+                                    printfn "send back an event"
+                                | _ -> ()
+                        | _ -> printfn "Got unknown message"
+                | None -> ()
     }
 
 let server host port ct =
@@ -56,9 +56,7 @@ let server host port ct =
 
                 if not ct.IsCancellationRequested then
                     return! listen ct
-                  else
-                    printfn "Cancellation requested!"
-                    (listener :> IDisposable).Dispose()
+                else (listener :> IDisposable).Dispose()
             with | :? OperationCanceledException -> printfn "Cancellation requested"; return()
         }
 
