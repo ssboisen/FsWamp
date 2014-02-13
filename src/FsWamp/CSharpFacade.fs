@@ -33,6 +33,8 @@ type WampClient(host : string, port : int) =
         async {
             do! wsc.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnect invoked by user", CancellationToken.None) |> awaitTask
             callIdMap |> reset (new InflightRpcCalls([])) |> ignore
+            topicMap |> reset (new TopicListeners([])) |> ignore
+            sessionId |> reset None |> ignore
         } |> Async.StartAsTask :> Task
 
     member this.Call(procURI : string, [<ParamArray>] arr : string array) =

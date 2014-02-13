@@ -37,7 +37,7 @@ let private processContext (context : HttpListenerContext) ct =
                                     do! event |> sendMessage
                                 | _ -> ()
                         | _ -> printfn "Got unknown message"
-                | None -> ()
+                | None -> do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
     }
 
 let server host port ct =

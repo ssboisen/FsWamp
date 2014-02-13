@@ -36,7 +36,7 @@ namespace FsWamp.CSharpTests
         }
 
         [Test]
-        [Ignore("Doesn't work at the moment, disconnect not happening")]
+        [Ignore("Can be fixed by having mutable clientwebsocket - but I don't know if the disconnect reconnect scenario is what I want")]
         public async Task CanConnectDisconnectAndConnectAgain()
         {
             using (var csharpFacade = new WampClient("localhost", 16000))
