@@ -21,7 +21,7 @@ namespace FsWamp.CSharpTests
             {
                 await csharpFacade.Connect();
 
-                var calls = 10000d;
+                var calls = 1000d;
                 var sw = Stopwatch.StartNew();
                 while (calls-- > 0)
                 {
@@ -29,7 +29,7 @@ namespace FsWamp.CSharpTests
                 }
                 sw.Stop();
 
-                Console.WriteLine("Calls per second: {0}", 10000d / sw.Elapsed.TotalSeconds);
+                Console.WriteLine("Calls per second: {0}", 1000d / sw.Elapsed.TotalSeconds);
             }
         }
 

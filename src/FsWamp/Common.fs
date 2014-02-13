@@ -24,4 +24,3 @@ let recv (ws : WebSocket) (ct : CancellationToken) =
                         else return! recv' acc ws
                 }
     recv' [||] ws
-

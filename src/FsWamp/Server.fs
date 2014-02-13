@@ -10,7 +10,7 @@ let private processContext (context : HttpListenerContext) ct =
     async {
         let! wsContext = context.AcceptWebSocketAsync(null) |> Async.AwaitTask
 
-        let welcome = new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(sprintf "[0,%s,1,FsWamp/0.0.1]" (Guid.NewGuid().ToString("n") )))
+        let welcome = welcomeMessage (Guid.NewGuid().ToString("n")) "FsWamp/0.0.1"
 
         do! wsContext.WebSocket.SendAsync(welcome, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
 
@@ -26,15 +26,15 @@ let private processContext (context : HttpListenerContext) ct =
                         match procUri with
                             | "add" ->
                                 let res = args |> Seq.map int |> Seq.sum
-                                let callResult = new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(sprintf "[3,%s,%i]" callId res))
+                                let callResult = callResultMessage callId res
                                 do! wsContext.WebSocket.SendAsync(callResult, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
                             | _ ->
-                                let callError = new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(sprintf "[4,%s,%s,%s%s]" callId "error#unknown_function" "Unknown function: " procUri))
+                                let callError = callErrorMessage callId "error#unknown_function" "Unknown function: " procUri
                                 do! wsContext.WebSocket.SendAsync(callError, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
                     | SUBSCRIBE (topicId) ->
                         match topicId with
                             | "seTopic" ->
-                                let event = new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(sprintf "[8,%s,hello through event]" topicId))
+                                let event = eventMessage topicId "hello through event"
                                 do! wsContext.WebSocket.SendAsync(event, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
                                 printfn "send back an event"
                             | _ -> ()
