@@ -35,7 +35,6 @@ let private processContext (context : HttpListenerContext) ct =
                                 | "seTopic" ->
                                     let event = eventMessage topicId "hello through event"
                                     do! event |> sendMessage
-                                    printfn "send back an event"
                                 | _ -> ()
                         | _ -> printfn "Got unknown message"
                 | None -> ()
@@ -43,12 +42,13 @@ let private processContext (context : HttpListenerContext) ct =
 
 let server host port ct =
     let listener = new HttpListener();
-    listener.Prefixes.Add(sprintf "http://%s:%i/" host port);
+    let uri = sprintf "http://%s:%i/" host port
+    listener.Prefixes.Add(uri);
     listener.Start();
     let rec listen (ct : CancellationToken) =
         async {
             try
-                printfn "Listening"
+                printfn "Listening on %s" uri
                 let! context = listener.GetContextAsync() |> Async.AwaitTask
                 if context.Request.IsWebSocketRequest then
                     processContext context ct |> Async.Start

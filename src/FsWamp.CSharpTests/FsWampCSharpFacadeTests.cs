@@ -27,11 +27,11 @@ namespace FsWamp.CSharpTests
                 {
                     var res = await csharpFacade.Call("add", "5", "6");
                     if(count % 1000 == 0)
-                        Console.WriteLine("Calls per second: {0}", calls / sw.Elapsed.TotalSeconds);
+                        Console.WriteLine("Calls per second: {0}", count / sw.Elapsed.TotalSeconds);
                 }
                 sw.Stop();
 
-                Console.WriteLine("Total Calls per second: {0}", calls / sw.Elapsed.TotalSeconds);
+                Console.WriteLine("Total Calls per second: {0}", count / sw.Elapsed.TotalSeconds);
             }
         }
 

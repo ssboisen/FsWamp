@@ -15,6 +15,7 @@ let main argv =
     async {
         let cts = new System.Threading.CancellationTokenSource()
         do! server host 16000 cts.Token
-    } |> Async.RunSynchronously
+    } |> Async.Start
+    printfn "Press enter to exit"
     System.Console.ReadLine() |> ignore
     0
