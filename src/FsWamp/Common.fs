@@ -26,11 +26,11 @@ let recv (ws : WebSocket) (ct : CancellationToken) =
                     let data = if result.Count < buffer.Count then buffer.Array.[.. result.Count] else buffer.Array
                     let acc = Array.append acc data
                     match result.CloseStatus.HasValue, result.EndOfMessage, result.MessageType with
-                        | true, true, _ -> return None
                         | false, true, WebSocketMessageType.Text ->
                             return Some(acc |> System.Text.UTF8Encoding.UTF8.GetString |> getMessage)
                         | false, false, WebSocketMessageType.Text ->
                             return! recv' acc ws
+                        | true, true, _
                         | _ -> return None
                 }
     recv' [||] ws
