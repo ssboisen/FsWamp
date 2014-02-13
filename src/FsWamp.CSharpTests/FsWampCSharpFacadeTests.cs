@@ -11,21 +11,27 @@ namespace FsWamp.CSharpTests
     public class FsWampCSharpFacadeTests
     {
         [Test]
-        public async Task CanPerformRpc()
+        [TestCase(10d)]
+        [TestCase(100d)]
+        [TestCase(1000d)]
+        [TestCase(10000d)]
+        [TestCase(25000d)]
+        public async Task CanPerformRpc(double calls)
         {
             using (var csharpFacade = new WampClient("localhost", 16000))
             {
                 await csharpFacade.Connect();
-
-                var calls = 10d;
                 var sw = Stopwatch.StartNew();
-                while (calls-- > 0)
+                var count = 0;
+                while (count++ < calls)
                 {
                     var res = await csharpFacade.Call("add", "5", "6");
+                    if(count % 1000 == 0)
+                        Console.WriteLine("Calls per second: {0}", calls / sw.Elapsed.TotalSeconds);
                 }
                 sw.Stop();
 
-                Console.WriteLine("Calls per second: {0}", 1000d / sw.Elapsed.TotalSeconds);
+                Console.WriteLine("Total Calls per second: {0}", calls / sw.Elapsed.TotalSeconds);
             }
         }
 

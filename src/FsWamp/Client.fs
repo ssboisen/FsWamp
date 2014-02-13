@@ -29,14 +29,18 @@ module Client =
                                         !callIdMap
                                             |> Map.tryFind callId
                                             |> function
-                                                | Some(tcs) -> tcs.SetResult(result)
+                                                | Some(tcs) ->
+                                                    tcs.SetResult(result)
+                                                    callIdMap |> swap (fun m -> m |> Map.remove callId) |> ignore
                                                 | None -> ()
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | CALLERROR (callId, errorUri, errorDesc, errorDetails) ->
                                         !callIdMap
                                             |> Map.tryFind callId
                                             |> function
-                                                | Some(tcs) -> tcs.SetException(new InvalidWampRpcCallException(callId, errorUri, errorDesc, errorDetails))
+                                                | Some(tcs) ->
+                                                    tcs.SetException(new InvalidWampRpcCallException(callId, errorUri, errorDesc, errorDetails))
+                                                    callIdMap |> swap (fun m -> m |> Map.remove callId) |> ignore
                                                 | None -> ()
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | EVENT (topicUri, event) ->
