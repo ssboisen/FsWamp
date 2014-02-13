@@ -25,7 +25,7 @@ let private processContext (context : HttpListenerContext) ct =
                     | CALL (callId, procUri, args) ->
                         match procUri with
                             | "add" ->
-                                let res = args |> Seq.map int |> Seq.sum
+                                let res = args |> Seq.map int |> Seq.sum |> string
                                 let callResult = callResultMessage callId res
                                 do! callResult |> sendMessage
                             | _ ->

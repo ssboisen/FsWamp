@@ -13,11 +13,20 @@ type Client(host : string, port : int) =
     let wsc = new ClientWebSocket();
     let callIdMap = atom (new InflightRpcCalls([]))
     let topicMap = atom (new TopicListeners([]))
+    let sessionId = atom SessionId.None
     let sendMessage = sendMessage wsc cts.Token
+
+    let publish (topic : string) (event : string) (excludeMe : bool option) (exclude : string seq option) (eligible : string seq option) =
+        async {
+            let excludeMe = excludeMe |> Option.bind (fun b -> if b then (!sessionId) else None)
+            let msg = publishMessage topic event excludeMe exclude eligible
+            do! msg |> sendMessage
+        } |> Async.StartAsTask :> Task
+
     member this.Connect() =
         async {
             do! wsc.ConnectAsync(new Uri(sprintf "ws://%s:%i" host port), cts.Token) |> awaitTask
-            reciveLoop wsc callIdMap topicMap cts.Token |> Async.Start
+            reciveLoop wsc callIdMap topicMap sessionId cts.Token |> Async.Start
         } |> Async.StartAsTask :> Task
 
     member this.Disconnect() =
@@ -53,8 +62,22 @@ type Client(host : string, port : int) =
     member this.Unsubscribe(topic : string) =
         async {
             let msg = unSubscribeMessage topic
+            topicMap |> swap (fun m -> m|> Map.remove topic) |> ignore
             do! msg |> sendMessage
         } |> Async.StartAsTask :> Task
+
+    member this.Publish(topic, event) =
+        publish topic event None None None
+
+    member this.Publish(topic, event, excludeMe) =
+        publish topic event (Some(excludeMe)) None None
+
+    member this.Publish(topic, event, excludeMe, excludes) =
+        publish topic event (Some(excludeMe)) (Some(excludes)) None
+
+    member this.Publish(topic, event, excludeMe, excludes, eligible) =
+        publish topic event (Some(excludeMe)) (Some(excludes)) (Some(eligible))
+
 
     interface IDisposable with
         member this.Dispose() =
