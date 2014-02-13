@@ -9,10 +9,10 @@ open FsWamp.Common
 let private processContext (context : HttpListenerContext) ct =
     async {
         let! wsContext = context.AcceptWebSocketAsync(null) |> Async.AwaitTask
-
+        let sendMessage = sendMessage wsContext.WebSocket ct
         let welcome = welcomeMessage (Guid.NewGuid().ToString("n")) "FsWamp/0.0.1"
 
-        do! wsContext.WebSocket.SendAsync(welcome, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
+        do! welcome |> sendMessage
 
         while not ct.IsCancellationRequested do
             let! (data, mt) = recv wsContext.WebSocket ct
@@ -27,15 +27,15 @@ let private processContext (context : HttpListenerContext) ct =
                             | "add" ->
                                 let res = args |> Seq.map int |> Seq.sum
                                 let callResult = callResultMessage callId res
-                                do! wsContext.WebSocket.SendAsync(callResult, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
+                                do! callResult |> sendMessage
                             | _ ->
                                 let callError = callErrorMessage callId "error#unknown_function" "Unknown function: " procUri
-                                do! wsContext.WebSocket.SendAsync(callError, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
+                                do! callError |> sendMessage
                     | SUBSCRIBE (topicId) ->
                         match topicId with
                             | "seTopic" ->
                                 let event = eventMessage topicId "hello through event"
-                                do! wsContext.WebSocket.SendAsync(event, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
+                                do! event |> sendMessage
                                 printfn "send back an event"
                             | _ -> ()
                     | _ -> printfn "Got unknown message"

@@ -24,3 +24,8 @@ let recv (ws : WebSocket) (ct : CancellationToken) =
                         else return! recv' acc ws
                 }
     recv' [||] ws
+
+let sendMessage (ws: WebSocket) (ct : CancellationToken) (msg : ArraySegment<_>) =
+    async {
+        do! ws.SendAsync(msg, WebSocketMessageType.Text, true, ct) |> awaitTask
+    }

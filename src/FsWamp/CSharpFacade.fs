@@ -13,6 +13,7 @@ type Client(host : string, port : int) =
     let wsc = new ClientWebSocket();
     let callIdMap = atom (new InflightRpcCalls([]))
     let topicMap = atom (new TopicListeners([]))
+    let sendMessage = sendMessage wsc cts.Token
     member this.Connect() =
         async {
             do! wsc.ConnectAsync(new Uri(sprintf "ws://%s:%i" host port), cts.Token) |> awaitTask
@@ -29,30 +30,30 @@ type Client(host : string, port : int) =
         let tcs = new TaskCompletionSource<_>()
         async {
             let callId = Guid.NewGuid().ToString("n")
-            let call = callMessage callId procURI arr
+            let msg = callMessage callId procURI arr
             callIdMap |> swap (fun t -> t |> Map.add callId tcs) |> ignore
-            do! wsc.SendAsync(call, WebSocketMessageType.Text, true, cts.Token) |> awaitTask
+            do! msg |> sendMessage
         } |> Async.Start
         tcs.Task
 
     member this.Subscribe(topic : string) =
         let event = new Event<string>()
         async {
-            let call = subscribeMessage topic
+            let msg = subscribeMessage topic
             topicMap |> swap (fun m ->
                     m |> Map.tryFind topic
                       |> function
                             | Some(l) -> m |> Map.add topic (event :: l)
                             | None -> [(topic, [event])] |> Map.ofList
                     ) |> ignore
-            do! wsc.SendAsync(call, WebSocketMessageType.Text, true, cts.Token) |> awaitTask
+            do! msg |> sendMessage
         } |> Async.Start
         event.Publish :> IObservable<string>
 
     member this.Unsubscribe(topic : string) =
         async {
-            let call = unSubscribeMessage topic
-            do! wsc.SendAsync(call, WebSocketMessageType.Text, true, cts.Token) |> awaitTask
+            let msg = unSubscribeMessage topic
+            do! msg |> sendMessage
         } |> Async.StartAsTask :> Task
 
     interface IDisposable with
