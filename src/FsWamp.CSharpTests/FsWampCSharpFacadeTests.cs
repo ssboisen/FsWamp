@@ -26,7 +26,7 @@ namespace FsWamp.CSharpTests
                 while (count++ < calls)
                 {
                     var res = await csharpFacade.Call("add", "5", "6");
-                    if(count % 1000 == 0)
+                    if (count % 1000 == 0)
                         Console.WriteLine("Calls per second: {0}", count / sw.Elapsed.TotalSeconds);
                 }
                 sw.Stop();
@@ -52,7 +52,7 @@ namespace FsWamp.CSharpTests
                 Console.WriteLine("Reconnected");
                 var res2 = await csharpFacade.Call("add", "5", "6");
                 Console.WriteLine("Got result two");
-                Assert.That(res2,Is.EqualTo("11"));
+                Assert.That(res2, Is.EqualTo("11"));
             }
         }
 
@@ -63,11 +63,28 @@ namespace FsWamp.CSharpTests
             {
                 await csharpFacade.Connect();
 
-                var observable = csharpFacade.Subscribe("seTopic");
+                var observable = csharpFacade.Subscribe("seTopic").Publish().RefCount();
 
-                observable.ObserveOn(TaskPoolScheduler.Default).Subscribe(t => Console.WriteLine("Got content: {0}", t));
+                var res = await observable.Take(1);
 
-                await Task.Delay(5000);
+                Assert.That(res, Is.Not.Empty);
+            }
+        }
+
+        [Test]
+        public async Task CanPublishEvents()
+        {
+            using (var csharpFacade = new WampClient("localhost", 16000))
+            {
+                await csharpFacade.Connect();
+
+                var observable = csharpFacade.Subscribe("publishTopic").Publish().RefCount();
+
+                await csharpFacade.Publish("publishTopic", "selfpublishing");
+
+                var res = await observable.Take(1);
+
+                Assert.That(res, Is.EqualTo("selfpublishing"));
             }
         }
     }

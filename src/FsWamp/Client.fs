@@ -18,14 +18,15 @@ module Client =
                     if ct.IsCancellationRequested then return ()
                     try
                         let! msg = recv wsc ct
-
                         match msg with
                             | Some(msg) ->
                                 match msg with
                                     | WELCOME (sId, serverIdent) ->
+                                        printfn "got welcome"
                                         sessionId |> reset (Some(sId)) |> ignore
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | CALLRESULT (callId, result) ->
+                                        printfn "got callres: %s %s" callId result
                                         !callIdMap
                                             |> Map.tryFind callId
                                             |> function
@@ -35,6 +36,7 @@ module Client =
                                                 | None -> ()
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | CALLERROR (callId, errorUri, errorDesc, errorDetails) ->
+                                        printfn "got callerror"
                                         !callIdMap
                                             |> Map.tryFind callId
                                             |> function
@@ -44,10 +46,16 @@ module Client =
                                                 | None -> ()
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | EVENT (topicUri, event) ->
-                                        !topicMap
+                                        printfn "got event on topic: '%s'" topicUri
+                                        let map = !topicMap
+                                        printfn "has topic: %A" (map |> Map.containsKey topicUri)
+                                        map
                                             |> Map.tryFind topicUri
                                             |> function
-                                                | Some(subscribers) -> subscribers |> List.iter (fun e ->
+                                                | Some(subscribers) ->
+                                                    printfn "found subscribers: %A" subscribers
+                                                    subscribers |> List.iter (fun e ->
+                                                    printfn "trigering event"
                                                     e.Trigger(event)
                                                     )
                                                 | None -> ()

@@ -52,10 +52,15 @@ type WampClient(host : string, port : int) =
         async {
             let msg = subscribeMessage topic
             topicMap |> swap (fun m ->
+                    printfn "subscribing in atom"
                     m |> Map.tryFind topic
                       |> function
-                            | Some(l) -> m |> Map.add topic (event :: l)
-                            | None -> [(topic, [event])] |> Map.ofList
+                            | Some(l) -> 
+                                printfn "subsribed to topic: %s" topic
+                                m |> Map.add topic (event :: l)
+                            | None -> 
+                                printfn "subsribed to topic: %s" topic
+                                [(topic, [event])] |> Map.ofList
                     ) |> ignore
             do! msg |> sendMessage
         } |> Async.Start

@@ -16,6 +16,7 @@ let private processContext (context : HttpListenerContext) ct =
 
         while not ct.IsCancellationRequested do
             let! msg = recv wsContext.WebSocket ct
+            printfn "got message on server: %A" msg
             match msg with
                 | Some(msg) ->
                     match msg with
@@ -30,11 +31,18 @@ let private processContext (context : HttpListenerContext) ct =
                                 | _ ->
                                     let callError = callErrorMessage callId "error#unknown_function" "Unknown function: " procUri
                                     do! callError |> sendMessage
+                        | PUBLISH (topic, event, excludeMe, excludes, eligible) ->
+                            let event = eventMessage topic event
+                            printfn "got publish on server: '%s'" topic
+                            do! event |> sendMessage
+                            printfn "replied"
                         | SUBSCRIBE (topicId) ->
+                            printfn "got subscribe for %s on server" topicId
                             match topicId with
                                 | "seTopic" ->
                                     let event = eventMessage topicId "hello through event"
                                     do! event |> sendMessage
+                                    printfn "send message back"
                                 | _ -> ()
                         | _ -> printfn "Got unknown message"
                 | None -> do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
