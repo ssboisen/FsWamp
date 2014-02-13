@@ -50,7 +50,10 @@ let server host port ct =
             try
                 printfn "Listening"
                 let! context = listener.GetContextAsync() |> Async.AwaitTask
-                processContext context ct |> Async.Start
+                if context.Request.IsWebSocketRequest then
+                    processContext context ct |> Async.Start
+                else context.Response.Close()
+
                 if not ct.IsCancellationRequested then
                     return! listen ct
                   else
