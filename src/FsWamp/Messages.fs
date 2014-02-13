@@ -36,6 +36,13 @@ let (|CALLERROR|_|) (input : string) =
             Some((callId, errorUri, errorDesc, errorDetails))
         | _ -> None
 
+let (|SUBSCRIBE|_|) (input : string) =
+    let msg = input |> getMessage
+    match msg with
+        | ["5"; topicUri] ->
+            Some(topicUri)
+        | _ -> None
+
 let (|EVENT|_|) (input : string) =
     let msg = input |> getMessage
     match msg with

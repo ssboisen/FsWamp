@@ -2,6 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -48,6 +51,21 @@ namespace FsWamp.CSharpTests
                 var res2 = await csharpFacade.Call("add", "5", "6");
                 Console.WriteLine("Got result two");
                 Assert.That(res2,Is.EqualTo("11"));
+            }
+        }
+
+        [Test]
+        public async Task CanSubscribeToEvents()
+        {
+            using (var csharpFacade = new CSharpFacade.Client("localhost", 16000))
+            {
+                await csharpFacade.Connect();
+
+                var observable = csharpFacade.Subscribe("seTopic");
+
+                observable.ObserveOn(TaskPoolScheduler.Default).Subscribe(t => Console.WriteLine("Got content: {0}", t));
+
+                await Task.Delay(5000);
             }
         }
     }

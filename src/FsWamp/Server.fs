@@ -31,6 +31,13 @@ let private processContext (context : HttpListenerContext) ct =
                             | _ ->
                                 let callError = new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(sprintf "[4,%s,%s,%s%s]" callId "error#unknown_function" "Unknown function: " procUri))
                                 do! wsContext.WebSocket.SendAsync(callError, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
+                    | SUBSCRIBE (topicId) ->
+                        match topicId with
+                            | "seTopic" ->
+                                let event = new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(sprintf "[8,%s,hello through event]" topicId))
+                                do! wsContext.WebSocket.SendAsync(event, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
+                                printfn "send back an event"
+                            | _ -> ()
                     | _ -> printfn "Got unknown message"
     }
 

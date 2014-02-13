@@ -46,6 +46,7 @@ type Client(host : string, port : int) =
                             | None -> [(topic, [event])] |> Map.ofList
                     ) |> ignore
             do! wsc.SendAsync(call, WebSocketMessageType.Text, true, cts.Token) |> awaitTask
+            printfn "Send subscribtion"
         } |> Async.Start
         event.Publish :> IObservable<string>
 

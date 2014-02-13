@@ -39,7 +39,9 @@ let rec reciveLoop wsc (callIdMap : InflightRpcCalls) (topicMap : TopicListeners
                                 !topicMap
                                     |> Map.tryFind topicUri
                                     |> function
-                                        | Some(subscribers) -> subscribers |> List.iter (fun e -> e.Trigger(event))
+                                        | Some(subscribers) -> subscribers |> List.iter (fun e ->
+                                            e.Trigger(event)
+                                            )
                                         | None -> ()
                                 return! reciveLoop wsc callIdMap topicMap ct
                             | _ -> printfn "Got unknown message"
