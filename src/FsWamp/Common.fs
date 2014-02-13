@@ -12,7 +12,7 @@ type InvalidWampRpcCallException(callId : string, errorUri : string, errorDescri
   member this.ErrorUri = errorUri
   member this.ErrorDetails = errorDetails
 
-let recv (ws : WebSocket) (ct : CancellationToken) = 
+let recv (ws : WebSocket) (ct : CancellationToken) =
     let rec recv' (acc : byte array) (ws : WebSocket) =
                 async {
                     let buffer = new ArraySegment<_>(Array.create 1024 (new byte()))

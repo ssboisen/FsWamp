@@ -10,7 +10,7 @@ open FsWamp.Client
 
 open StateManagement
 [<EntryPoint>]
-let main argv = 
+let main argv =
     let host = "localhost"
     async {
         let cts = new System.Threading.CancellationTokenSource()

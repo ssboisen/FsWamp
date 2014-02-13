@@ -9,7 +9,7 @@ open FsWamp.Common
 let private processContext (context : HttpListenerContext) ct =
     async {
         let! wsContext = context.AcceptWebSocketAsync(null) |> Async.AwaitTask
-        
+
         let welcome = new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(sprintf "[0,%s,1,FsWamp/0.0.1]" (Guid.NewGuid().ToString("n") )))
 
         do! wsContext.WebSocket.SendAsync(welcome, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
@@ -24,7 +24,7 @@ let private processContext (context : HttpListenerContext) ct =
                         printfn "Got prefixmessage with prefix: %s for uri: %s" prefix uri
                     | CALL (callId, procUri, args) ->
                         match procUri with
-                            | "add" -> 
+                            | "add" ->
                                 let res = args |> Seq.map int |> Seq.sum
                                 let callResult = new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(sprintf "[3,%s,%i]" callId res))
                                 do! wsContext.WebSocket.SendAsync(callResult, WebSockets.WebSocketMessageType.Text, true, ct) |> awaitTask
@@ -46,11 +46,11 @@ let server host port ct =
                 processContext context ct |> Async.Start
                 if not ct.IsCancellationRequested then
                     return! listen ct
-                  else 
+                  else
                     printfn "Cancellation requested!"
                     (listener :> IDisposable).Dispose()
             with | :? OperationCanceledException -> printfn "Cancellation requested"; return()
         }
-    
+
     listen ct
 

@@ -1,7 +1,7 @@
 ﻿module FsWamp.Messages
 open System
 
-let getMessage (input : string) = 
+let getMessage (input : string) =
     input.Substring(1, input.LastIndexOf(']') - 1).Split([|','|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
 
 let (|WELCOME|_|) (input : string) =
@@ -36,3 +36,9 @@ let (|CALLERROR|_|) (input : string) =
             Some((callId, errorUri, errorDesc, errorDetails))
         | _ -> None
 
+let (|EVENT|_|) (input : string) =
+    let msg = input |> getMessage
+    match msg with
+        | ["8"; topicUri; event] ->
+            Some((topicUri, event))
+        | _ -> None

@@ -4,24 +4,30 @@ open System
 type WatcherCallback<'T> = Guid -> 'T -> 'T -> unit
 
 and Messages<'T> =
-        private 
+        private
         | Swap of ('T -> 'T) * AsyncReplyChannel<'T>
         | CompareAndSet of oldValue : 'T * newValue : 'T * AsyncReplyChannel<bool>
         | Reset of value : 'T
         | Deref of AsyncReplyChannel<'T>
         | AddWatcher of key : Guid * WatcherCallback<'T>
         | RemoveWatcher of key : Guid
-and
-    atom<'T> = private { container : MailboxProcessor<Messages<'T>> }
+        | Stop
+
+type atom<'T> = {
+                    container : MailboxProcessor<Messages<'T>>
+                }
+                interface IDisposable with
+                    member this.Dispose() =
+                        this.container.Post(Stop)
 
 /// Creates a new atom with the value v
-let atom<'T when 'T : equality> (v : 'T) : atom<'T> = 
+let atom<'T when 'T : equality> (v : 'T) : atom<'T> =
     let mbp = MailboxProcessor<Messages<'T>>.Start(fun inbox ->
                 let rec loop (state : 'T) (watchers : Map<Guid, WatcherCallback<'T>>) =
                     async {
                         let! msg = inbox.Receive()
                         match msg with
-                            | Swap(f, c) -> 
+                            | Swap(f, c) ->
                                 let newValue = f state
                                 c.Reply(newValue)
                                 watchers |> Map.iter (fun k f -> f k state newValue)
@@ -44,8 +50,8 @@ let atom<'T when 'T : equality> (v : 'T) : atom<'T> =
                                 return! loop state (watchers |> Map.add key cb)
                             | RemoveWatcher(key) ->
                                 return! loop state (watchers |> Map.remove key)
-
-                    } 
+                            | Stop -> return ()
+                    }
                 loop v Map.empty
                 )
     { container = mbp }
@@ -59,7 +65,7 @@ let compareAndSet oldValue newValue (a : 'T atom) =
     a.container.PostAndReply(fun c -> CompareAndSet(oldValue, newValue, c))
 
 /// Sets the new value of the atom to v disregarding the previous value
-let set v (a : 'T atom) =
+let reset v (a : 'T atom) =
     a.container.Post(Reset(v))
     v
 
