@@ -11,8 +11,8 @@ open StateManagement
 type Client(host : string, port : int) =
     let cts = new CancellationTokenSource()
     let wsc = new ClientWebSocket();
-    let callIdMap = atom Map.empty<string,TaskCompletionSource<string>>
-    let topicMap = atom Map.empty<string, Event<string> list>
+    let callIdMap = atom (new InflightRpcCalls([]))
+    let topicMap = atom (new TopicListeners([]))
     member this.Connect() =
         async {
             do! wsc.ConnectAsync(new Uri(sprintf "ws://%s:%i" host port), cts.Token) |> awaitTask

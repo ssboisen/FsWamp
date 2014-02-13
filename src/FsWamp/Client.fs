@@ -7,10 +7,10 @@ open FsWamp.Messages
 open FsWamp.Common
 open StateManagement
 
-type InflightRpcCalls = Map<string,TaskCompletionSource<string>> atom
-type TopicListeners = Map<string, Event<string> list> atom
+type InflightRpcCalls = Map<string,TaskCompletionSource<string>>
+type TopicListeners = Map<string, Event<string> list>
 
-let rec reciveLoop wsc (callIdMap : InflightRpcCalls) (topicMap : TopicListeners) (ct : CancellationToken) =
+let rec reciveLoop wsc (callIdMap : InflightRpcCalls atom) (topicMap : TopicListeners atom) (ct : CancellationToken) =
             async {
                 if ct.IsCancellationRequested then return ()
                 try
