@@ -1,4 +1,4 @@
-﻿namespace FsWamp.CSharpFacade
+﻿namespace FsWamp
 open FsWamp.Client
 open System
 open System.Net.WebSockets
@@ -8,7 +8,7 @@ open FsWamp.Common
 open FsWamp.Messages
 open StateManagement
 
-type Client(host : string, port : int) =
+type WampClient(host : string, port : int) =
     let cts = new CancellationTokenSource()
     let wsc = new ClientWebSocket();
     let callIdMap = atom (new InflightRpcCalls([]))
@@ -84,3 +84,5 @@ type Client(host : string, port : int) =
             cts.Cancel()
             wsc.Dispose()
             (callIdMap :> IDisposable).Dispose()
+            (topicMap :> IDisposable).Dispose()
+            (sessionId :> IDisposable).Dispose()

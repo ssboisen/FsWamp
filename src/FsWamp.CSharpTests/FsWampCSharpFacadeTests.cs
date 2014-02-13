@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
-using System.Reactive.Threading.Tasks;
-using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
 
@@ -17,7 +13,7 @@ namespace FsWamp.CSharpTests
         [Test]
         public async Task CanPerformRpc()
         {
-            using (var csharpFacade = new CSharpFacade.Client("localhost", 16000))
+            using (var csharpFacade = new WampClient("localhost", 16000))
             {
                 await csharpFacade.Connect();
 
@@ -37,7 +33,7 @@ namespace FsWamp.CSharpTests
         [Ignore("Doesn't work at the moment, disconnect not happening")]
         public async Task CanConnectDisconnectAndConnectAgain()
         {
-            using (var csharpFacade = new CSharpFacade.Client("localhost", 16000))
+            using (var csharpFacade = new WampClient("localhost", 16000))
             {
                 await csharpFacade.Connect();
 
@@ -57,7 +53,7 @@ namespace FsWamp.CSharpTests
         [Test]
         public async Task CanSubscribeToEvents()
         {
-            using (var csharpFacade = new CSharpFacade.Client("localhost", 16000))
+            using (var csharpFacade = new WampClient("localhost", 16000))
             {
                 await csharpFacade.Connect();
 
