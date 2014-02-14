@@ -5,18 +5,17 @@ open System.Threading.Tasks
 open System.Threading
 open FsWamp.Messages
 open FsWamp.Common
+open StateManagement
 
-let private processContext (context : HttpListenerContext) ct =
+let private processContext (context : HttpListenerContext) subscribers ct =
     async {
         let! wsContext = context.AcceptWebSocketAsync(null) |> Async.AwaitTask
-        let sendMessage = sendMessage wsContext.WebSocket ct
+        let replyMessage = sendMessage wsContext.WebSocket ct
         let welcome = welcomeMessage (Guid.NewGuid().ToString("n")) "FsWamp/0.0.1"
 
-        do! welcome |> sendMessage
-
+        do! welcome |> replyMessage
         while not ct.IsCancellationRequested do
             let! msg = recv wsContext.WebSocket ct
-            printfn "got message on server: %A" msg
             match msg with
                 | Some(msg) ->
                     match msg with
@@ -27,23 +26,17 @@ let private processContext (context : HttpListenerContext) ct =
                                 | "add" ->
                                     let res = args |> Seq.map int |> Seq.sum |> string
                                     let callResult = callResultMessage callId res
-                                    do! callResult |> sendMessage
+                                    do! callResult |> replyMessage
                                 | _ ->
                                     let callError = callErrorMessage callId "error#unknown_function" "Unknown function: " procUri
-                                    do! callError |> sendMessage
+                                    do! callError |> replyMessage
                         | PUBLISH (topic, event, excludeMe, excludes, eligible) ->
                             let event = eventMessage topic event
-                            printfn "got publish on server: '%s'" topic
-                            do! event |> sendMessage
-                            printfn "replied"
+                            let subs = !subscribers |> Map.tryFind topic |> function | Some(subs) -> subs | None -> []
+                            do! subs |> List.map (fun ws -> event |> sendMessage ws ct) |> Async.Parallel |> Async.Ignore
                         | SUBSCRIBE (topicId) ->
-                            printfn "got subscribe for %s on server" topicId
-                            match topicId with
-                                | "seTopic" ->
-                                    let event = eventMessage topicId "hello through event"
-                                    do! event |> sendMessage
-                                    printfn "send message back"
-                                | _ -> ()
+                            subscribers |> swapMapWithList topicId wsContext.WebSocket |> ignore
+                            ()
                         | _ -> printfn "Got unknown message"
                 | None -> do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
     }
@@ -53,13 +46,15 @@ let server host port ct =
     let uri = sprintf "http://%s:%i/" host port
     listener.Prefixes.Add(uri);
     listener.Start();
+    let subscribers = atom Map.empty<string, WebSockets.WebSocket list>
+
     let rec listen (ct : CancellationToken) =
         async {
             try
                 printfn "Listening on %s" uri
                 let! context = listener.GetContextAsync() |> Async.AwaitTask
                 if context.Request.IsWebSocketRequest then
-                    processContext context ct |> Async.Start
+                    processContext context subscribers ct |> Async.Start
                 else context.Response.Close()
 
                 if not ct.IsCancellationRequested then

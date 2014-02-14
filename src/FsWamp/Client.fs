@@ -46,16 +46,12 @@ module Client =
                                                 | None -> ()
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | EVENT (topicUri, event) ->
-                                        printfn "got event on topic: '%s'" topicUri
                                         let map = !topicMap
-                                        printfn "has topic: %A" (map |> Map.containsKey topicUri)
                                         map
                                             |> Map.tryFind topicUri
                                             |> function
                                                 | Some(subscribers) ->
-                                                    printfn "found subscribers: %A" subscribers
                                                     subscribers |> List.iter (fun e ->
-                                                    printfn "trigering event"
                                                     e.Trigger(event)
                                                     )
                                                 | None -> ()

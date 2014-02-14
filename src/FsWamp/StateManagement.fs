@@ -60,6 +60,15 @@ let atom<'T when 'T : equality> (v : 'T) : atom<'T> =
 let swap<'T> f (a : 'T atom) =
     a.container.PostAndReply(fun c -> Swap(f,c))
 
+let swapMapWithList key e (a : atom<Map<_, _ list>>) =
+    a |> swap (fun m ->
+            m |> Map.tryFind key
+              |> function
+                    | Some(l) ->
+                        m |> Map.add key (e :: l)
+                    | None ->
+                        [(key, [e])] |> Map.ofList)
+
 /// Compares the oldValue with the current state of the atom, if equal sets the new state to the newValue otherwise no change
 let compareAndSet oldValue newValue (a : 'T atom) =
     a.container.PostAndReply(fun c -> CompareAndSet(oldValue, newValue, c))

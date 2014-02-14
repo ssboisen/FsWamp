@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using System.Threading.Tasks;
 using NUnit.Framework;
 
@@ -57,34 +58,46 @@ namespace FsWamp.CSharpTests
         }
 
         [Test]
-        public async Task CanSubscribeToEvents()
+        public async Task CanSubscribeToAndPublishEvents()
         {
             using (var csharpFacade = new WampClient("localhost", 16000))
             {
                 await csharpFacade.Connect();
 
-                var observable = csharpFacade.Subscribe("seTopic").Publish().RefCount();
+                var observable = csharpFacade.Subscribe("publishTopic").Replay();
 
-                var res = await observable.Take(1);
+                using (observable.Connect())
+                {
+                    await csharpFacade.Publish("publishTopic", "selfpublishing");
 
-                Assert.That(res, Is.Not.Empty);
+                    var res = await observable.Take(1);
+
+                    Assert.That(res, Is.EqualTo("selfpublishing"));
+                }
             }
         }
 
         [Test]
-        public async Task CanPublishEvents()
+        public async Task CanSubscribeToFromOneClientAndPublishEventFromAnotherClient()
         {
-            using (var csharpFacade = new WampClient("localhost", 16000))
+            using (var client1 = new WampClient("localhost", 16000))
+            using (var client2 = new WampClient("localhost", 16000))
             {
-                await csharpFacade.Connect();
+                await client1.Connect();
+                await client2.Connect();
 
-                var observable = csharpFacade.Subscribe("publishTopic").Publish().RefCount();
+                var client1Obs = client1.Subscribe("publishTopic").Replay();
 
-                await csharpFacade.Publish("publishTopic", "selfpublishing");
+                using (client1Obs.Connect())
+                {
+                    await client2.Publish("publishTopic", "selfpublishing");
+                    var obsTask = client1Obs.Take(1).ToTask();
+                    var delay = Task.Delay(1000);
+                    var t = await Task.WhenAny(obsTask, delay);
 
-                var res = await observable.Take(1);
-
-                Assert.That(res, Is.EqualTo("selfpublishing"));
+                    Assert.That(delay.Id, Is.Not.EqualTo(t.Id), "Timed out");
+                    Assert.That(obsTask.Result, Is.EqualTo("selfpublishing"));
+                }
             }
         }
     }
