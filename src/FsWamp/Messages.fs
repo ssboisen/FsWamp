@@ -55,6 +55,12 @@ let (|SUBSCRIBE|_|) (input : string list) =
             Some(topicUri)
         | _ -> None
 
+let (|UNSUBSCRIBE|_|) (msg : string list) =
+    match msg with
+        | ["6"; topicUri] ->
+            Some(topicUri)
+        | _ -> None
+
 let (|PUBLISH|_|) (input : string list) =
     let msg = input
     match msg with

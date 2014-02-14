@@ -78,6 +78,59 @@ namespace FsWamp.CSharpTests
         }
 
         [Test]
+        public async Task WhenSubscribedAndThenUnsubscribeNoLongerReceivePublishedMessages()
+        {
+            using (var client1 = new WampClient("localhost", 16000))
+            using (var client2 = new WampClient("localhost", 16000))
+            {
+                await client1.Connect();
+                await client2.Connect();
+
+                var client1Obs = client1.Subscribe("publishTopic").Replay();
+
+                using (client1Obs.Connect())
+                {
+                    await client2.Publish("publishTopic", "selfpublishing");
+                    await client1.Unsubscribe("publishTopic");
+                    await client2.Publish("publishTopic", "selfpublishing");
+
+                    var obsTask = client1Obs.Take(2).ToTask();
+                    var delay = Task.Delay(3000);
+
+                    var t = await Task.WhenAny(obsTask, delay);
+
+                    Assert.That(delay.Id, Is.EqualTo(t.Id), "Should have timed out");
+                }
+            }
+        }
+
+        [Test]
+        public async Task WhenSubscribedAndThenUnsubscribeNoLongerReceivePublishedMessages_DualTest()
+        {
+            using (var client1 = new WampClient("localhost", 16000))
+            using (var client2 = new WampClient("localhost", 16000))
+            {
+                await client1.Connect();
+                await client2.Connect();
+
+                var client1Obs = client1.Subscribe("publishTopic").Replay();
+
+                using (client1Obs.Connect())
+                {
+                    await client2.Publish("publishTopic", "selfpublishing");
+                    await client2.Publish("publishTopic", "selfpublishing");
+
+                    var obsTask = client1Obs.Take(2).ToTask();
+                    var delay = Task.Delay(3000);
+
+                    var t = await Task.WhenAny(obsTask, delay);
+
+                    Assert.That(delay.Id, Is.Not.EqualTo(t.Id), "Timed out!");
+                }
+            }
+        }
+
+        [Test]
         public async Task CanSubscribeToFromOneClientAndPublishEventFromAnotherClient()
         {
             using (var client1 = new WampClient("localhost", 16000))

@@ -47,7 +47,7 @@
     <Compile Include="Messages.fs" />
     <Compile Include="Server.fs" />
     <Compile Include="Client.fs" />
-    <Compile Include="CSharpFacade.fs" />
+    <Compile Include="WampClient.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <PropertyGroup>

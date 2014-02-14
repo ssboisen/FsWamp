@@ -36,7 +36,14 @@ let private processContext (context : HttpListenerContext) subscribers ct =
                             do! subs |> List.map (fun ws -> event |> sendMessage ws ct) |> Async.Parallel |> Async.Ignore
                         | SUBSCRIBE (topicId) ->
                             subscribers |> swapMapWithList topicId wsContext.WebSocket |> ignore
-                            ()
+                        | UNSUBSCRIBE (topicId) ->
+                            subscribers |> swap (fun m ->
+                                            m |> Map.tryFind topicId
+                                              |> function
+                                                    | Some(subs) ->
+                                                        let subs = subs |> List.filter (fun ws -> ws <> wsContext.WebSocket)
+                                                        m |> Map.add topicId subs
+                                                    | None -> m) |> ignore
                         | _ -> printfn "Got unknown message"
                 | None -> do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
     }
