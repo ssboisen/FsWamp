@@ -22,11 +22,9 @@ module Client =
                             | Some(msg) ->
                                 match msg with
                                     | WELCOME (sId, serverIdent) ->
-                                        printfn "got welcome"
                                         sessionId |> reset (Some(sId)) |> ignore
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | CALLRESULT (callId, result) ->
-                                        printfn "got callres: %s %s" callId result
                                         !callIdMap
                                             |> Map.tryFind callId
                                             |> function
@@ -36,7 +34,6 @@ module Client =
                                                 | None -> ()
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | CALLERROR (callId, errorUri, errorDesc, errorDetails) ->
-                                        printfn "got callerror"
                                         !callIdMap
                                             |> Map.tryFind callId
                                             |> function

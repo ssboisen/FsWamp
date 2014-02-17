@@ -69,6 +69,23 @@ let swapMapWithList key e (a : atom<Map<_, _ list>>) =
                     | None ->
                         [(key, [e])] |> Map.ofList)
 
+type SetOperation<'a> =
+    | Add of 'a
+    | Remove of 'a
+
+let swapMapWithSet key op (a : atom<Map<_, _ Set>>) =
+    a |> swap (fun m ->
+            m |> Map.tryFind key
+              |> function
+                    | Some(l) ->
+                        match op with
+                            | Add(v) -> m |> Map.add key (l |> Set.add v)
+                            | Remove(v) -> m |> Map.add key (l |> Set.remove v)
+                    | None ->
+                        match op with
+                            | Add(v) -> [(key, Set([v]))] |> Map.ofList
+                            | _ -> m)
+
 /// Compares the oldValue with the current state of the atom, if equal sets the new state to the newValue otherwise no change
 let compareAndSet oldValue newValue (a : 'T atom) =
     a.container.PostAndReply(fun c -> CompareAndSet(oldValue, newValue, c))

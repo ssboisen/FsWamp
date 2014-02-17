@@ -12,8 +12,11 @@ type InvalidWampRpcCallException(callId : string, errorUri : string, errorDescri
   member this.ErrorUri = errorUri
   member this.ErrorDetails = errorDetails
 
+let trim (s : string) =
+    s.Trim()
+
 let split (s : string) =
-    s.Split([|","|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
+    s.Split([|","|], StringSplitOptions.RemoveEmptyEntries) |> Array.map trim |> List.ofArray
 
 let getMessage (input : string) =
     input.Substring(1, input.LastIndexOf(']') - 1) |> split
@@ -39,3 +42,6 @@ let sendMessage (ws: WebSocket) (ct : CancellationToken) (msg : ArraySegment<_>)
     async {
         do! ws.SendAsync(msg, WebSocketMessageType.Text, true, ct) |> awaitTask
     }
+module Option =
+    let getAndMapWithFallBack f v = function Some(v) -> f v | None -> v
+    let getWithfallBack v = function Some(v) -> v | None -> v

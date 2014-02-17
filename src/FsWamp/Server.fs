@@ -7,61 +7,89 @@ open FsWamp.Messages
 open FsWamp.Common
 open StateManagement
 
-let private processContext (context : HttpListenerContext) subscribers ct =
+[<CustomEquality; CustomComparison>]
+type Subscriber = { SessionId : string; Socket : WebSockets.WebSocket }
+                    interface IComparable with
+                       member this.CompareTo obj : int =
+                        let other = obj :?> Subscriber
+                        this.SessionId.CompareTo other.SessionId
+                    override this.Equals(o) =
+                        match o with
+                            | :? Subscriber as other ->
+                                this.SessionId.Equals(other.SessionId)
+                            | _ -> false
+                    override this.GetHashCode() =
+                        this.SessionId.GetHashCode()
+
+
+let private processContext (context : HttpListenerContext) subscribers rpcMappings ct =
     async {
         let! wsContext = context.AcceptWebSocketAsync(null) |> Async.AwaitTask
         let replyMessage = sendMessage wsContext.WebSocket ct
-        let welcome = welcomeMessage (Guid.NewGuid().ToString("n")) "FsWamp/0.0.1"
+
+        let sessionId = (Guid.NewGuid().ToString("n"))
+        let contextData =  { SessionId = sessionId; Socket = wsContext.WebSocket }
+        let welcome = welcomeMessage sessionId "FsWamp/0.0.1"
+        let prefixes = atom Map.empty<string,string>
 
         do! welcome |> replyMessage
+
         while not ct.IsCancellationRequested do
             let! msg = recv wsContext.WebSocket ct
             match msg with
                 | Some(msg) ->
                     match msg with
                         | PREFIX (prefix, uri) ->
+                            prefixes |> swap (fun m -> m |> Map.add prefix uri) |> ignore
                             printfn "Got prefixmessage with prefix: %s for uri: %s" prefix uri
                         | CALL (callId, procUri, args) ->
-                            match procUri with
-                                | "add" ->
-                                    let res = args |> Seq.map int |> Seq.sum |> string
-                                    let callResult = callResultMessage callId res
+                            let uri =
+                                if procUri.StartsWith "http://" || procUri.StartsWith "https://" then Some(procUri)
+                                else
+                                    match procUri.Split([|":"|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray with
+                                     | [ns; op] -> !prefixes |> Map.tryFind ns |> Option.map (fun u -> sprintf "%s%s" u op)
+                                     | _ -> None
+
+                            let dispatcher = uri |> Option.bind (fun u -> rpcMappings |> Map.tryFind u)
+                            match dispatcher with
+                                | Some(dispatchFunc) ->
+                                    let callResult = dispatchFunc args |> callResultMessage callId
                                     do! callResult |> replyMessage
                                 | _ ->
-                                    let callError = callErrorMessage callId "error#unknown_function" "Unknown function: " procUri
+                                    let callError = callErrorMessage callId "error#generic" (sprintf "Unable to process uri: %s " procUri) (sprintf "Args: %A" args)
                                     do! callError |> replyMessage
+
                         | PUBLISH (topic, event, excludeMe, excludes, eligible) ->
-                            let event = eventMessage topic event
-                            let subs = !subscribers |> Map.tryFind topic |> function | Some(subs) -> subs | None -> []
-                            do! subs |> List.map (fun ws -> event |> sendMessage ws ct) |> Async.Parallel |> Async.Ignore
+                            let msg = eventMessage topic event
+                            let subs = !subscribers |> Map.tryFind topic |> Option.getAndMapWithFallBack Set.toList []
+                            printfn "publishing %s on %s to %A" event topic (subs |> List.map (fun t -> t.SessionId))
+                            do! subs |> List.map (fun ws -> msg |> sendMessage ws.Socket ct) |> Async.Parallel |> Async.Ignore
                         | SUBSCRIBE (topicId) ->
-                            subscribers |> swapMapWithList topicId wsContext.WebSocket |> ignore
+                            subscribers |> swapMapWithSet topicId (Add(contextData)) |> ignore
+                            printfn "subscribed to %s: %A" topicId !subscribers
+
                         | UNSUBSCRIBE (topicId) ->
-                            subscribers |> swap (fun m ->
-                                            m |> Map.tryFind topicId
-                                              |> function
-                                                    | Some(subs) ->
-                                                        let subs = subs |> List.filter (fun ws -> ws <> wsContext.WebSocket)
-                                                        m |> Map.add topicId subs
-                                                    | None -> m) |> ignore
-                        | _ -> printfn "Got unknown message"
+                            subscribers |> swapMapWithSet topicId (Remove(contextData)) |> ignore
+                        | _ -> printfn "Got unknown message: %A" msg
                 | None -> do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
     }
+
+
 
 let server host port ct =
     let listener = new HttpListener();
     let uri = sprintf "http://%s:%i/" host port
     listener.Prefixes.Add(uri);
     listener.Start();
-    let subscribers = atom Map.empty<string, WebSockets.WebSocket list>
-
+    let subscribers = atom Map.empty<string, Subscriber Set>
+    let rpcMappings = Map.empty<string, string list -> string option>
     let rec listen (ct : CancellationToken) =
         async {
             try
                 printfn "Listening on %s" uri
                 let! context = listener.GetContextAsync() |> Async.AwaitTask
                 if context.Request.IsWebSocketRequest then
-                    processContext context subscribers ct |> Async.Start
+                    processContext context subscribers rpcMappings ct |> Async.Start
                 else context.Response.Close()
 
                 if not ct.IsCancellationRequested then

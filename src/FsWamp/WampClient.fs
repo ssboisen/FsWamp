@@ -16,7 +16,7 @@ type WampClient(host : string, port : int) =
     let sessionId = atom SessionId.None
     let sendMessage = sendMessage wsc cts.Token
 
-    let publish (topic : string) (event : string) (excludeMe : bool option) (exclude : string seq option) (eligible : string seq option) =
+    let publish (topic : string) (event : string option) (excludeMe : bool option) (exclude : string seq option) (eligible : string seq option) =
         async {
             let excludeMe = excludeMe |> Option.bind (fun b -> if b then (!sessionId) else None)
             let msg = publishMessage topic event excludeMe exclude eligible
@@ -35,6 +35,12 @@ type WampClient(host : string, port : int) =
             callIdMap |> reset (new InflightRpcCalls([])) |> ignore
             topicMap |> reset (new TopicListeners([])) |> ignore
             sessionId |> reset None |> ignore
+        } |> Async.StartAsTask :> Task
+
+    member this.Prefix(prefix : string, uri : string) =
+        async {
+            let msg = prefixMessage prefix uri
+            do! msg |> sendMessage
         } |> Async.StartAsTask :> Task
 
     member this.Call(procURI : string, [<ParamArray>] arr : string array) =
@@ -63,17 +69,19 @@ type WampClient(host : string, port : int) =
             do! msg |> sendMessage
         } |> Async.StartAsTask :> Task
 
+    member this.Publish(topic) =
+        publish topic None None None None
     member this.Publish(topic, event) =
-        publish topic event None None None
+        publish topic (Some(event)) None None None
 
     member this.Publish(topic, event, excludeMe) =
-        publish topic event (Some(excludeMe)) None None
+        publish topic (Some(event)) (Some(excludeMe)) None None
 
     member this.Publish(topic, event, excludeMe, excludes) =
-        publish topic event (Some(excludeMe)) (Some(excludes)) None
+        publish topic (Some(event)) (Some(excludeMe)) (Some(excludes)) None
 
     member this.Publish(topic, event, excludeMe, excludes, eligible) =
-        publish topic event (Some(excludeMe)) (Some(excludes)) (Some(eligible))
+        publish topic (Some(event)) (Some(excludeMe)) (Some(excludes)) (Some(eligible))
 
 
     interface IDisposable with

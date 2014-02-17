@@ -1,8 +1,15 @@
 ﻿module FsWamp.Messages
 open System
 open FsWamp.Common
+
 let join s (ss : string seq) =
     String.Join(s, ss)
+
+let formatWampData (s : string) =
+    if s.StartsWith("{") || s.StartsWith("\"") || s.StartsWith("[") || Char.IsNumber(s.[0]) || s = "null"
+        then s
+    else
+        sprintf "\"%s\"" s
 
 let escapeJsonArray = getMessage
 let private welcomeMessageId = "0"
@@ -76,41 +83,66 @@ let (|EVENT|_|) (input : string list) =
     let msg = input
     match msg with
         | ["8"; topicUri; event] ->
-            Some((topicUri, event))
+            Some((topicUri.Replace("\"",""), event))
         | _ -> None
 
 let private makeMessage (s : string) =
     new ArraySegment<_>(System.Text.UTF8Encoding.UTF8.GetBytes(s))
 
 let welcomeMessage sessionId serverIdent =
+    let sessionId = sessionId |> formatWampData
+    let serverIdent = serverIdent |> formatWampData
     sprintf "[%s,%s,1,%s]" welcomeMessageId sessionId serverIdent |> makeMessage
 
+let prefixMessage prefix uri =
+    let prefix = prefix |> formatWampData
+    let uri = uri |> formatWampData
+    sprintf "[%s,%s,%s]" prefixMessageId prefix uri |> makeMessage
+
 let callMessage callId procUri (args : string array) =
-    sprintf "[%s,%s,%s,%s]" callMessageId callId procUri (String.Join(",", args)) |> makeMessage
+    let callId = callId |> formatWampData
+    let procUri = procUri |> formatWampData
+    let args = args |> Array.map formatWampData
+    match args.Length with
+        | 0 -> sprintf "[%s,%s,%s]" callMessageId callId procUri |> makeMessage
+        | _ -> sprintf "[%s,%s,%s,%s]" callMessageId callId procUri (String.Join(",", args)) |> makeMessage
 
 let callResultMessage callId result =
+    let callId = callId |> formatWampData
+    let result = result |> Option.getWithfallBack "null" |> formatWampData
     sprintf "[%s,%s,%s]" callResultMessageId callId result |> makeMessage
 
 let callErrorMessage callId errorUri errorDescription errorDetails =
-    sprintf "[%s,%s,%s,%s%s]" callErrorMessageId callId errorUri errorDescription errorDetails |> makeMessage
+    let callId = callId |> formatWampData
+    let errorUri = errorUri |> formatWampData
+    let errorDescription = errorDescription |> formatWampData
+    let errorDetails = errorDetails |> formatWampData
+    sprintf "[%s,%s,%s,%s,%s]" callErrorMessageId callId errorUri errorDescription errorDetails |> makeMessage
 
-let subscribeMessage topic =
-    sprintf "[%s,%s]" subscribeMessageId topic |> makeMessage
+let subscribeMessage topicUri =
+    let topicUri = topicUri |> formatWampData
+    printfn "subscribing: %s" topicUri
+    sprintf "[%s,%s]" subscribeMessageId topicUri |> makeMessage
 
-let unSubscribeMessage topic =
-    sprintf "[%s,%s]" unsubscribeMessageId topic |> makeMessage
+let unSubscribeMessage topicUri =
+    let topicUri = topicUri |> formatWampData
+    sprintf "[%s,%s]" unsubscribeMessageId topicUri |> makeMessage
 
-let eventMessage topicId content =
-    sprintf "[%s,%s,%s]" eventMessageId topicId content |> makeMessage
-
-let publishMessage topic event (excludeMe : string option) (exclude : string seq option) (eligible : string seq option) =
+let publishMessage topicUri (event : string option) (excludeMe : string option) (exclude : string seq option) (eligible : string seq option) =
+    let topicUri = topicUri |> formatWampData
+    let event = event |> Option.getWithfallBack "null" |> formatWampData
     match excludeMe, exclude, eligible with
         | None, None, None ->
-            sprintf "[%s,%s,%s]" publishMessageId topic event |> makeMessage
+            sprintf "[%s,%s,%s]" publishMessageId topicUri event |> makeMessage
         | Some(s), None, None ->
-            sprintf "[%s,%s,%s,%s]" publishMessageId topic event "true" |> makeMessage
+            sprintf "[%s,%s,%s,%s]" publishMessageId topicUri event "true" |> makeMessage
         | Some(me), Some(ex), Some(el) ->
             let exclude = sprintf "[%s]" (join "," (me :: (ex |> List.ofSeq)))
             let eligible = sprintf "[%s]" (join "," el)
-            sprintf "[%s,%s,%s,%s,%s]" publishMessageId topic event exclude eligible |> makeMessage
+            sprintf "[%s,%s,%s,%s,%s]" publishMessageId topicUri event exclude eligible |> makeMessage
         | _ -> raise (new Exception())
+
+let eventMessage topicUri content =
+    let topicUri = topicUri |> formatWampData
+    let content = content |> formatWampData
+    sprintf "[%s,%s,%s]" eventMessageId topicUri content |> makeMessage
