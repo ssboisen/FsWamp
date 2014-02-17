@@ -29,14 +29,14 @@ let (|WELCOME|_|) (input : string list) =
 
 let (|PREFIX|_|) (input : string list) =
     match input with
-        | ["1"; prefix; uri] -> Some((prefix, uri))
+        | ["1"; prefix; uri] -> Some((prefix.Trim('"'), uri.Trim('"')))
         | _ -> None
 
 let (|CALL|_|) (input : string list) =
     let msg = input
     match msg with
         | "2" :: callId :: procUri :: args ->
-            Some((callId, procUri, args))
+            Some((callId, procUri.Trim('"'), args))
         | _ -> None
 
 let (|CALLRESULT|_|) (input : string list) =

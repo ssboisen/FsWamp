@@ -41,32 +41,29 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
                     match msg with
                         | PREFIX (prefix, uri) ->
                             prefixes |> swap (fun m -> m |> Map.add prefix uri) |> ignore
-                            printfn "Got prefixmessage with prefix: %s for uri: %s" prefix uri
                         | CALL (callId, procUri, args) ->
                             let uri =
                                 if procUri.StartsWith "http://" || procUri.StartsWith "https://" then Some(procUri)
                                 else
                                     match procUri.Split([|":"|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray with
-                                     | [ns; op] -> !prefixes |> Map.tryFind ns |> Option.map (fun u -> sprintf "%s%s" u op)
+                                     | [ns; op] ->
+                                        !prefixes |> Map.tryFind ns |> Option.map (fun u -> sprintf "%s%s" u op)
                                      | _ -> None
-
                             let dispatcher = uri |> Option.bind (fun u -> rpcMappings |> Map.tryFind u)
                             match dispatcher with
                                 | Some(dispatchFunc) ->
                                     let callResult = dispatchFunc args |> callResultMessage callId
                                     do! callResult |> replyMessage
                                 | _ ->
-                                    let callError = callErrorMessage callId "error#generic" (sprintf "Unable to process uri: %s " procUri) (sprintf "Args: %A" args)
+                                    let callError = callErrorMessage callId "error#generic" (sprintf "Unable to process uri: %s" procUri) (sprintf "Args: %A" args)
                                     do! callError |> replyMessage
 
                         | PUBLISH (topic, event, excludeMe, excludes, eligible) ->
                             let msg = eventMessage topic event
                             let subs = !subscribers |> Map.tryFind topic |> Option.getAndMapWithFallBack Set.toList []
-                            printfn "publishing %s on %s to %A" event topic (subs |> List.map (fun t -> t.SessionId))
                             do! subs |> List.map (fun ws -> msg |> sendMessage ws.Socket ct) |> Async.Parallel |> Async.Ignore
                         | SUBSCRIBE (topicId) ->
                             subscribers |> swapMapWithSet topicId (Add(contextData)) |> ignore
-                            printfn "subscribed to %s: %A" topicId !subscribers
 
                         | UNSUBSCRIBE (topicId) ->
                             subscribers |> swapMapWithSet topicId (Remove(contextData)) |> ignore
@@ -83,6 +80,7 @@ let server host port ct =
     listener.Start();
     let subscribers = atom Map.empty<string, Subscriber Set>
     let rpcMappings = Map.empty<string, string list -> string option>
+    let rpcMappings = Map.add "http://localhost/simple/calc#add" (List.map int >> List.sum >> string >> Some) rpcMappings
     let rec listen (ct : CancellationToken) =
         async {
             try

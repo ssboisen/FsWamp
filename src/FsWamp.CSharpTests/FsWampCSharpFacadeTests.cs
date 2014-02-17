@@ -43,7 +43,7 @@ namespace FsWamp.CSharpTests
             {
                 await csharpFacade.Connect();
                 await csharpFacade.Prefix("calc", "http://localhost/simple/calc#");
-                var call = csharpFacade.Call("calc:add", "5", "6");
+                var call = csharpFacade.Call("calc:addd", "5", "6");
                 var delay = Task.Delay(5000);
                 var r = await Task.WhenAny(call, delay);
 
