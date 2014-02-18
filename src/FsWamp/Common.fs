@@ -3,7 +3,7 @@ open System
 open System.Threading
 open System.Threading.Tasks
 open System.Net.WebSockets
-
+open StateManagement
 let awaitTask (t : Task) = t |> Async.AwaitIAsyncResult |> Async.Ignore
 
 type InvalidWampRpcCallException(callId : string, errorUri : string, errorDescription : string, errorDetails : string) =
@@ -11,6 +11,12 @@ type InvalidWampRpcCallException(callId : string, errorUri : string, errorDescri
   member this.CallId = callId
   member this.ErrorUri = errorUri
   member this.ErrorDetails = errorDetails
+
+type InvalidTopicException(topic : string) =
+    inherit System.Exception(sprintf "Topic: %s is invalid. Did you forget to register a prefix?" topic)
+
+type InvalidRpcUriException(rpcUri : string) =
+    inherit System.Exception(sprintf "RpcUri: %s is invalid. Did you forget to register a prefix?" rpcUri)
 
 let trim (s : string) =
     s.Trim()
@@ -42,6 +48,15 @@ let sendMessage (ws: WebSocket) (ct : CancellationToken) (msg : ArraySegment<_>)
     async {
         do! ws.SendAsync(msg, WebSocketMessageType.Text, true, ct) |> awaitTask
     }
+
+let processPrefix (prefixes : atom<_>) (uriOrCurie : string) =
+    if uriOrCurie.StartsWith "http://" || uriOrCurie.StartsWith "https://" then Some(uriOrCurie)
+    else
+        match uriOrCurie.Split([|":"|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray with
+         | [ns; op] ->
+            !prefixes |> Map.tryFind ns |> Option.map (fun u -> sprintf "%s%s" u op)
+         | _ -> None
+
 module Option =
     let getAndMapWithFallBack f v = function Some(v) -> f v | None -> v
     let getWithfallBack v = function Some(v) -> v | None -> v

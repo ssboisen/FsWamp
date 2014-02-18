@@ -26,7 +26,7 @@ namespace FsWamp.CSharpTests
                 var count = 0;
                 while (count++ < calls)
                 {
-                    var res = await csharpFacade.Call("add", "5", "6");
+                    var res = await csharpFacade.Call("http://localhost/simple/calc#add", "5", "6");
                     if (count % 1000 == 0)
                         Console.WriteLine("Calls per second: {0}", count / sw.Elapsed.TotalSeconds);
                 }
@@ -43,12 +43,67 @@ namespace FsWamp.CSharpTests
             {
                 await csharpFacade.Connect();
                 await csharpFacade.Prefix("calc", "http://localhost/simple/calc#");
-                var call = csharpFacade.Call("calc:addd", "5", "6");
+                var call = csharpFacade.Call("calc:add", "5", "6");
                 var delay = Task.Delay(5000);
                 var r = await Task.WhenAny(call, delay);
 
                 Assert.That(r.Id, Is.Not.EqualTo(delay.Id), "Timed out!");
                 Assert.That(call.Result, Is.EqualTo("11"), "Wrong result");
+            }
+        }
+
+        [Test]
+        public async Task CanPublishEventUsingAPrefix()
+        {
+            using (var client1 = new WampClient("localhost", 16000))
+            using (var client2 = new WampClient("localhost", 16000))
+            {
+                await client1.Connect();
+                await client2.Connect();
+
+                var client1Obs = client1.Subscribe("http://localhost/simple/event#myevent").Replay();
+                await Task.Delay(200);
+
+                using (client1Obs.Connect())
+                {
+                    await client2.Prefix("event", "http://localhost/simple/event#");
+                    await client2.Publish("event:myevent", "selfpublishing");
+
+                    var obsTask = client1Obs.Take(1).ToTask();
+                    var delay = Task.Delay(5000);
+
+                    var t = await Task.WhenAny(obsTask, delay);
+
+                    Assert.That(delay.Id, Is.Not.EqualTo(t.Id), "Timed out!");
+                }
+            }
+        }
+
+        [Test]
+        public async Task CanSubscribeToEventUsingAPrefix()
+        {
+            using (var client1 = new WampClient("localhost", 16000))
+            using (var client2 = new WampClient("localhost", 16000))
+            {
+                await client1.Connect();
+                await client2.Connect();
+
+                await client1.Prefix("event", "http://localhost/simple/event#");
+
+                var client1Obs = client1.Subscribe("event:myevent").Replay();
+                await Task.Delay(200);
+
+                using (client1Obs.Connect())
+                {
+                    await client2.Publish("http://localhost/simple/event#myevent", "selfpublishing");
+
+                    var obsTask = client1Obs.Take(1).ToTask();
+                    var delay = Task.Delay(5000);
+
+                    var t = await Task.WhenAny(obsTask, delay);
+
+                    Assert.That(delay.Id, Is.Not.EqualTo(t.Id), "Timed out!");
+                }
             }
         }
 
@@ -80,12 +135,12 @@ namespace FsWamp.CSharpTests
             {
                 await csharpFacade.Connect();
 
-                var observable = csharpFacade.Subscribe("publishTopic").Replay();
+                var observable = csharpFacade.Subscribe("http://localhost/simple/event#myevent").Replay();
                 await Task.Delay(200);
 
                 using (observable.Connect())
                 {
-                    await csharpFacade.Publish("publishTopic", "selfpublishing");
+                    await csharpFacade.Publish("http://localhost/simple/event#myevent", "selfpublishing");
 
                     var res = await observable.Take(1);
 
@@ -103,13 +158,13 @@ namespace FsWamp.CSharpTests
                 await client1.Connect();
                 await client2.Connect();
 
-                var client1Obs = client1.Subscribe("publishTopic").Replay();
+                var client1Obs = client1.Subscribe("http://localhost/simple/event#myevent").Replay();
 
                 using (client1Obs.Connect())
                 {
-                    await client2.Publish("publishTopic", "selfpublishing");
-                    await client1.Unsubscribe("publishTopic");
-                    await client2.Publish("publishTopic", "selfpublishing");
+                    await client2.Publish("http://localhost/simple/event#myevent", "selfpublishing");
+                    await client1.Unsubscribe("http://localhost/simple/event#myevent");
+                    await client2.Publish("http://localhost/simple/event#myevent", "selfpublishing");
 
                     var obsTask = client1Obs.Take(2).ToTask();
                     var delay = Task.Delay(5000);
@@ -130,13 +185,13 @@ namespace FsWamp.CSharpTests
                 await client1.Connect();
                 await client2.Connect();
 
-                var client1Obs = client1.Subscribe("publishTopic").Replay();
+                var client1Obs = client1.Subscribe("http://localhost/simple/event#myevent").Replay();
                 await Task.Delay(200);
 
                 using (client1Obs.Connect())
                 {
-                    await client2.Publish("publishTopic", "selfpublishing");
-                    await client2.Publish("publishTopic", "selfpublishing");
+                    await client2.Publish("http://localhost/simple/event#myevent", "selfpublishing");
+                    await client2.Publish("http://localhost/simple/event#myevent", "selfpublishing");
 
                     var obsTask = client1Obs.Take(2).ToTask();
                     var delay = Task.Delay(5000);
@@ -158,12 +213,12 @@ namespace FsWamp.CSharpTests
                 await client1.Connect();
                 await client2.Connect();
 
-                var client1Obs = client1.Subscribe("publishTopic").Replay();
+                var client1Obs = client1.Subscribe("http://localhost/simple/event#myevent").Replay();
                 await Task.Delay(200);
 
                 using (client1Obs.Connect())
                 {
-                    await client2.Publish("publishTopic", "selfpublishing");
+                    await client2.Publish("http://localhost/simple/event#myevent", "selfpublishing");
                     var obsTask = client1Obs.Take(1).ToTask();
                     var delay = Task.Delay(5000);
                     var t = await Task.WhenAny(obsTask, delay);
@@ -183,12 +238,12 @@ namespace FsWamp.CSharpTests
                 await client1.Connect();
                 await client2.Connect();
 
-                var client1Obs = client1.Subscribe("publishTopic").Replay();
+                var client1Obs = client1.Subscribe("http://localhost/simple/event#myevent").Replay();
                 await Task.Delay(200);
 
                 using (client1Obs.Connect())
                 {
-                    await client2.Publish("publishTopic");
+                    await client2.Publish("http://localhost/simple/event#myevent");
                     var obsTask = client1Obs.Take(1).ToTask();
                     var delay = Task.Delay(5000);
                     var t = await Task.WhenAny(obsTask, delay);
@@ -208,12 +263,12 @@ namespace FsWamp.CSharpTests
                 await client1.Connect();
                 await client2.Connect();
 
-                var client1Obs = client1.Subscribe("publishTopic").Replay();
+                var client1Obs = client1.Subscribe("http://localhost/simple/event#myevent").Replay();
                 await Task.Delay(200);
 
                 using (client1Obs.Connect())
                 {
-                    await client2.Publish("publishTopic", "plain-old-string");
+                    await client2.Publish("http://localhost/simple/event#myevent", "plain-old-string");
                     var obsTask = client1Obs.Take(1).ToTask();
                     var delay = Task.Delay(5000);
                     var t = await Task.WhenAny(obsTask, delay);
@@ -233,12 +288,12 @@ namespace FsWamp.CSharpTests
                 await client1.Connect();
                 await client2.Connect();
 
-                var client1Obs = client1.Subscribe("publishTopic").Replay();
+                var client1Obs = client1.Subscribe("http://localhost/simple/event#myevent").Replay();
                 await Task.Delay(200);
 
                 using (client1Obs.Connect())
                 {
-                    await client2.Publish("publishTopic", "{ \"age\": 2 }");
+                    await client2.Publish("http://localhost/simple/event#myevent", "{ \"age\": 2 }");
                     var obsTask = client1Obs.Take(1).ToTask();
                     var delay = Task.Delay(5000);
                     var t = await Task.WhenAny(obsTask, delay);

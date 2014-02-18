@@ -31,7 +31,7 @@ module Client =
                                                 | Some(tcs) ->
                                                     tcs.SetResult(result)
                                                     callIdMap |> swap (fun m -> m |> Map.remove callId) |> ignore
-                                                | None -> ()
+                                                | None -> printfn "Could not find call-id: %s" callId
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | CALLERROR (callId, errorUri, errorDesc, errorDetails) ->
                                         !callIdMap

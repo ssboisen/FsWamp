@@ -21,7 +21,6 @@ type Subscriber = { SessionId : string; Socket : WebSockets.WebSocket }
                     override this.GetHashCode() =
                         this.SessionId.GetHashCode()
 
-
 let private processContext (context : HttpListenerContext) subscribers rpcMappings ct =
     async {
         let! wsContext = context.AcceptWebSocketAsync(null) |> Async.AwaitTask
@@ -34,6 +33,8 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
 
         do! welcome |> replyMessage
 
+        let processPrefix = processPrefix prefixes
+
         while not ct.IsCancellationRequested do
             let! msg = recv wsContext.WebSocket ct
             match msg with
@@ -41,32 +42,45 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
                     match msg with
                         | PREFIX (prefix, uri) ->
                             prefixes |> swap (fun m -> m |> Map.add prefix uri) |> ignore
+
                         | CALL (callId, procUri, args) ->
-                            let uri =
-                                if procUri.StartsWith "http://" || procUri.StartsWith "https://" then Some(procUri)
-                                else
-                                    match procUri.Split([|":"|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray with
-                                     | [ns; op] ->
-                                        !prefixes |> Map.tryFind ns |> Option.map (fun u -> sprintf "%s%s" u op)
-                                     | _ -> None
+                            let uri = processPrefix procUri
                             let dispatcher = uri |> Option.bind (fun u -> rpcMappings |> Map.tryFind u)
                             match dispatcher with
                                 | Some(dispatchFunc) ->
-                                    let callResult = dispatchFunc args |> callResultMessage callId
-                                    do! callResult |> replyMessage
+                                    try
+                                        let res = dispatchFunc args
+                                        let callResult = res |> callResultMessage callId
+                                        do! callResult |> replyMessage
+                                    with
+                                        | _ ->
+                                            let callError = callErrorMessage callId "error#exception" (sprintf "Exception while processing uri: %s" procUri) (sprintf "Args: %A" args)
+                                            do! callError |> replyMessage
                                 | _ ->
                                     let callError = callErrorMessage callId "error#generic" (sprintf "Unable to process uri: %s" procUri) (sprintf "Args: %A" args)
                                     do! callError |> replyMessage
 
-                        | PUBLISH (topic, event, excludeMe, excludes, eligible) ->
-                            let msg = eventMessage topic event
-                            let subs = !subscribers |> Map.tryFind topic |> Option.getAndMapWithFallBack Set.toList []
-                            do! subs |> List.map (fun ws -> msg |> sendMessage ws.Socket ct) |> Async.Parallel |> Async.Ignore
-                        | SUBSCRIBE (topicId) ->
-                            subscribers |> swapMapWithSet topicId (Add(contextData)) |> ignore
+                        | PUBLISH (topicUri, event, excludeMe, excludes, eligible) ->
+                            let topic = processPrefix topicUri
+                            match topic with
+                                | Some(topic) ->
+                                    let msg = eventMessage topic event
+                                    let subs = !subscribers |> Map.tryFind topic |> Option.getAndMapWithFallBack Set.toList []
+                                    do! subs |> List.map (fun sub -> msg |> sendMessage sub.Socket ct) |> Async.Parallel |> Async.Ignore
+                                | None -> ()
 
-                        | UNSUBSCRIBE (topicId) ->
-                            subscribers |> swapMapWithSet topicId (Remove(contextData)) |> ignore
+                        | SUBSCRIBE (topicUri) ->
+                            let topic = processPrefix topicUri
+                            match topic with
+                                | Some(topic) ->
+                                    subscribers |> swapMapWithSet topic (Add(contextData)) |> ignore
+                                | None -> ()
+
+                        | UNSUBSCRIBE (topicUri) ->
+                            let topic = processPrefix topicUri
+                            match topic with
+                                | Some(topic) -> subscribers |> swapMapWithSet topic (Remove(contextData)) |> ignore
+                                | None -> ()
                         | _ -> printfn "Got unknown message: %A" msg
                 | None -> do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
     }

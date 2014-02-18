@@ -15,12 +15,16 @@ type WampClient(host : string, port : int) =
     let topicMap = atom (new TopicListeners([]))
     let sessionId = atom SessionId.None
     let sendMessage = sendMessage wsc cts.Token
+    let prefixes = atom Map.empty<string,string>
 
     let publish (topic : string) (event : string option) (excludeMe : bool option) (exclude : string seq option) (eligible : string seq option) =
         async {
-            let excludeMe = excludeMe |> Option.bind (fun b -> if b then (!sessionId) else None)
-            let msg = publishMessage topic event excludeMe exclude eligible
-            do! msg |> sendMessage
+            match (processPrefix prefixes topic) with //Check if topic is valid with respect to already registered prefixes
+                | None -> raise (InvalidTopicException(topic))
+                | _ ->
+                    let excludeMe = excludeMe |> Option.bind (fun b -> if b then (!sessionId) else None)
+                    let msg = publishMessage topic event excludeMe exclude eligible
+                    do! msg |> sendMessage
         } |> Async.StartAsTask :> Task
 
     member this.Connect() =
@@ -41,32 +45,42 @@ type WampClient(host : string, port : int) =
         async {
             let msg = prefixMessage prefix uri
             do! msg |> sendMessage
+            prefixes |> swap (fun m -> m |> Map.add prefix uri) |> ignore
         } |> Async.StartAsTask :> Task
 
     member this.Call(procURI : string, [<ParamArray>] arr : string array) =
         let tcs = new TaskCompletionSource<_>()
         async {
-            let callId = Guid.NewGuid().ToString("n")
-            let msg = callMessage callId procURI arr
-            callIdMap |> swap (fun t -> t |> Map.add callId tcs) |> ignore
-            do! msg |> sendMessage
+            match (processPrefix prefixes procURI) with //Check if rpcUri is valid with respect to already registered prefixes
+                | None -> raise (InvalidRpcUriException(procURI))
+                | _ ->
+                    let callId = Guid.NewGuid().ToString("n")
+                    let msg = callMessage callId procURI arr
+                    callIdMap |> swap (fun t -> t |> Map.add callId tcs) |> ignore
+                    do! msg |> sendMessage
         } |> Async.Start
         tcs.Task
 
     member this.Subscribe(topic : string) =
         let event = new Event<string>()
         async {
-            let msg = subscribeMessage topic
-            topicMap |> swapMapWithList topic event |> ignore
-            do! msg |> sendMessage
+            match (processPrefix prefixes topic) with //Check if topic is valid with respect to already registered prefixes
+                | None -> raise (InvalidTopicException(topic))
+                | Some(uri) ->
+                    let msg = subscribeMessage topic
+                    topicMap |> swapMapWithList uri event |> ignore
+                    do! msg |> sendMessage
         } |> Async.Start
         event.Publish :> IObservable<string>
 
     member this.Unsubscribe(topic : string) =
         async {
-            let msg = unSubscribeMessage topic
-            topicMap |> swap (fun m -> m|> Map.remove topic) |> ignore
-            do! msg |> sendMessage
+            match (processPrefix prefixes topic) with //Check if topic is valid with respect to already registered prefixes
+                | None -> raise (InvalidTopicException(topic))
+                | Some(uri) ->
+                    let msg = unSubscribeMessage topic
+                    topicMap |> swap (fun m -> m|> Map.remove uri) |> ignore
+                    do! msg |> sendMessage
         } |> Async.StartAsTask :> Task
 
     member this.Publish(topic) =

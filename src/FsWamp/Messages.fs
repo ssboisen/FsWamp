@@ -43,40 +43,40 @@ let (|CALLRESULT|_|) (input : string list) =
     let msg = input
     match msg with
         | ["3"; callId; result] ->
-            Some((callId, result))
+            Some((callId.Trim('"'), result))
         | _ -> None
 
 let (|CALLERROR|_|) (input : string list) =
     let msg = input
     match msg with
         | ["4"; callId; errorUri; errorDesc] ->
-            Some((callId, errorUri, errorDesc, ""))
+            Some((callId.Trim('"'), errorUri, errorDesc, ""))
         | ["4"; callId; errorUri; errorDesc; errorDetails] ->
-            Some((callId, errorUri, errorDesc, errorDetails))
+            Some((callId.Trim('"'), errorUri, errorDesc, errorDetails))
         | _ -> None
 
 let (|SUBSCRIBE|_|) (input : string list) =
     let msg = input
     match msg with
         | ["5"; topicUri] ->
-            Some(topicUri)
+            Some(topicUri.Trim('"'))
         | _ -> None
 
 let (|UNSUBSCRIBE|_|) (msg : string list) =
     match msg with
         | ["6"; topicUri] ->
-            Some(topicUri)
+            Some(topicUri.Trim('"'))
         | _ -> None
 
 let (|PUBLISH|_|) (input : string list) =
     let msg = input
     match msg with
         | ["7"; topicUri; event] ->
-            Some((topicUri, event, false, [], []))
+            Some((topicUri.Trim('"'), event, false, [], []))
         | ["7"; topicUri; event; excludeMe] ->
-            Some((topicUri, event, excludeMe |> Convert.ToBoolean, [], []))
+            Some((topicUri.Trim('"'), event, excludeMe |> Convert.ToBoolean, [], []))
         | ["7"; topicUri; event; exclude; eligible] ->
-            Some((topicUri,event, false, exclude |> escapeJsonArray, eligible |> escapeJsonArray))
+            Some((topicUri.Trim('"'),event, false, exclude |> escapeJsonArray, eligible |> escapeJsonArray))
         | _ -> None
 
 let (|EVENT|_|) (input : string list) =
@@ -121,7 +121,6 @@ let callErrorMessage callId errorUri errorDescription errorDetails =
 
 let subscribeMessage topicUri =
     let topicUri = topicUri |> formatWampData
-    printfn "subscribing: %s" topicUri
     sprintf "[%s,%s]" subscribeMessageId topicUri |> makeMessage
 
 let unSubscribeMessage topicUri =
