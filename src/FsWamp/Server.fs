@@ -30,7 +30,7 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
         let contextData =  { SessionId = sessionId; Socket = wsContext.WebSocket }
         let welcome = welcomeMessage sessionId "FsWamp/0.0.1"
         let prefixes = atom Map.empty<string,string>
-
+        let subs = atom Set.empty
         do! welcome |> replyMessage
 
         let processPrefix = processPrefix prefixes
@@ -74,15 +74,26 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
                             match topic with
                                 | Some(topic) ->
                                     subscribers |> swapMapWithSet topic (Add(contextData)) |> ignore
+                                    subs |> swap (fun s -> s.Add topic) |> ignore
                                 | None -> ()
 
                         | UNSUBSCRIBE (topicUri) ->
                             let topic = processPrefix topicUri
                             match topic with
-                                | Some(topic) -> subscribers |> swapMapWithSet topic (Remove(contextData)) |> ignore
+                                | Some(topic) -> 
+                                    subscribers |> swapMapWithSet topic (Remove(contextData)) |> ignore
+                                    subs |> swap (fun s -> s.Remove topic) |> ignore
                                 | None -> ()
                         | _ -> printfn "Got unknown message: %A" msg
-                | None -> do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
+                | None ->
+                    let topics = !subs |> Set.toList
+                    subscribers |> swap (fun m ->
+                        topics |> List.fold (fun m t -> 
+                                m |> Map.tryFind t
+                                  |> function
+                                        | Some (s) -> m |> Map.add t (s |> Set.remove contextData)
+                                        | None -> m) m) |> ignore
+                    do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
     }
 
 
