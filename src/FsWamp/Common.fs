@@ -49,12 +49,12 @@ let sendMessage (ws: WebSocket) (ct : CancellationToken) (msg : ArraySegment<_>)
         do! ws.SendAsync(msg, WebSocketMessageType.Text, true, ct) |> awaitTask
     }
 
-let processPrefix (prefixes : atom<_>) (uriOrCurie : string) =
+let processPrefix prefixes (uriOrCurie : string) =
     if uriOrCurie.StartsWith "http://" || uriOrCurie.StartsWith "https://" then Some(uriOrCurie)
     else
         match uriOrCurie.Split([|":"|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray with
          | [ns; op] ->
-            !prefixes |> Map.tryFind ns |> Option.map (fun u -> sprintf "%s%s" u op)
+            prefixes |> Map.tryFind ns |> Option.map (fun u -> sprintf "%s%s" u op)
          | _ -> None
 
 module Option =

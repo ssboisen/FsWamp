@@ -29,71 +29,75 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
         let sessionId = (Guid.NewGuid().ToString("n"))
         let contextData =  { SessionId = sessionId; Socket = wsContext.WebSocket }
         let welcome = welcomeMessage sessionId "FsWamp/0.0.1"
-        let prefixes = atom Map.empty<string,string>
-        let subs = atom Set.empty
         do! welcome |> replyMessage
 
-        let processPrefix = processPrefix prefixes
+        let rec loop prefixes subs =
+            async {
+              if not ct.IsCancellationRequested then
+                  let! msg = recv wsContext.WebSocket ct
+                  match msg with
+                      | Some(msg) ->
+                          match msg with
+                              | PREFIX (prefix, uri) ->
+                                return! loop (prefixes |> Map.add prefix uri) subs
 
-        while not ct.IsCancellationRequested do
-            let! msg = recv wsContext.WebSocket ct
-            match msg with
-                | Some(msg) ->
-                    match msg with
-                        | PREFIX (prefix, uri) ->
-                            prefixes |> swap (fun m -> m |> Map.add prefix uri) |> ignore
+                              | CALL (callId, procUri, args) ->
+                                  let uri = processPrefix prefixes procUri
+                                  let dispatcher = uri |> Option.bind (fun u -> rpcMappings |> Map.tryFind u)
+                                  match dispatcher with
+                                      | Some(dispatchFunc) ->
+                                          try
+                                              let res = dispatchFunc args
+                                              let callResult = res |> callResultMessage callId
+                                              do! callResult |> replyMessage
+                                          with
+                                              | _ ->
+                                                  let callError = callErrorMessage callId "error#exception" (sprintf "Exception while processing uri: %s" procUri) (sprintf "Args: %A" args)
+                                                  do! callError |> replyMessage
+                                          return! loop prefixes subs
+                                      | _ ->
+                                          let callError = callErrorMessage callId "error#generic" (sprintf "Unable to process uri: %s" procUri) (sprintf "Args: %A" args)
+                                          do! callError |> replyMessage
+                                          return! loop prefixes subs
 
-                        | CALL (callId, procUri, args) ->
-                            let uri = processPrefix procUri
-                            let dispatcher = uri |> Option.bind (fun u -> rpcMappings |> Map.tryFind u)
-                            match dispatcher with
-                                | Some(dispatchFunc) ->
-                                    try
-                                        let res = dispatchFunc args
-                                        let callResult = res |> callResultMessage callId
-                                        do! callResult |> replyMessage
-                                    with
-                                        | _ ->
-                                            let callError = callErrorMessage callId "error#exception" (sprintf "Exception while processing uri: %s" procUri) (sprintf "Args: %A" args)
-                                            do! callError |> replyMessage
-                                | _ ->
-                                    let callError = callErrorMessage callId "error#generic" (sprintf "Unable to process uri: %s" procUri) (sprintf "Args: %A" args)
-                                    do! callError |> replyMessage
+                              | PUBLISH (topicUri, event, excludeMe, excludes, eligible) ->
+                                  let topic = processPrefix prefixes topicUri
+                                  match topic with
+                                      | Some(topic) ->
+                                          let msg = eventMessage topic event
+                                          do! !subscribers |> Map.tryFind topic |> Option.getAndMapWithFallBack Set.toList [] 
+                                                |> List.map (fun sub -> msg |> sendMessage sub.Socket ct) |> Async.Parallel |> Async.Ignore
+                                          return! loop prefixes subs
+                                      | None -> 
+                                          return! loop prefixes subs
 
-                        | PUBLISH (topicUri, event, excludeMe, excludes, eligible) ->
-                            let topic = processPrefix topicUri
-                            match topic with
-                                | Some(topic) ->
-                                    let msg = eventMessage topic event
-                                    let subs = !subscribers |> Map.tryFind topic |> Option.getAndMapWithFallBack Set.toList []
-                                    do! subs |> List.map (fun sub -> msg |> sendMessage sub.Socket ct) |> Async.Parallel |> Async.Ignore
-                                | None -> ()
+                              | SUBSCRIBE (topicUri) ->
+                                  let topic = processPrefix prefixes topicUri
+                                  match topic with
+                                      | Some(topic) ->
+                                          subscribers |> swapMapWithSet topic (Add(contextData)) |> ignore
+                                          return! loop prefixes (subs |> Set.add topic)
+                                      | None ->
+                                          return! loop prefixes subs
 
-                        | SUBSCRIBE (topicUri) ->
-                            let topic = processPrefix topicUri
-                            match topic with
-                                | Some(topic) ->
-                                    subscribers |> swapMapWithSet topic (Add(contextData)) |> ignore
-                                    subs |> swap (fun s -> s.Add topic) |> ignore
-                                | None -> ()
-
-                        | UNSUBSCRIBE (topicUri) ->
-                            let topic = processPrefix topicUri
-                            match topic with
-                                | Some(topic) -> 
-                                    subscribers |> swapMapWithSet topic (Remove(contextData)) |> ignore
-                                    subs |> swap (fun s -> s.Remove topic) |> ignore
-                                | None -> ()
-                        | _ -> printfn "Got unknown message: %A" msg
-                | None ->
-                    let topics = !subs |> Set.toList
-                    subscribers |> swap (fun m ->
-                        topics |> List.fold (fun m t -> 
-                                m |> Map.tryFind t
-                                  |> function
-                                        | Some (s) -> m |> Map.add t (s |> Set.remove contextData)
-                                        | None -> m) m) |> ignore
-                    do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
+                              | UNSUBSCRIBE (topicUri) ->
+                                  let topic = processPrefix prefixes topicUri
+                                  match topic with
+                                      | Some(topic) -> 
+                                          subscribers |> swapMapWithSet topic (Remove(contextData)) |> ignore
+                                          return! loop prefixes (subs |> Set.remove topic)
+                                      | None -> ()
+                              | _ -> printfn "Got unknown message: %A" msg
+                      | None ->
+                          subscribers |> swap (fun m ->
+                              subs |> Set.fold (fun m t -> 
+                                      m |> Map.tryFind t
+                                        |> function
+                                              | Some (s) -> m |> Map.add t (s |> Set.remove contextData)
+                                              | None -> m) m) |> ignore
+                          do! wsContext.WebSocket.CloseAsync( WebSockets.WebSocketCloseStatus.NormalClosure, "Closing", ct) |> awaitTask
+        }
+        do! loop Map.empty Set.empty
     }
 
 

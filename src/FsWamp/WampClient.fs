@@ -19,7 +19,7 @@ type WampClient(host : string, port : int) =
 
     let publish (topic : string) (event : string option) (excludeMe : bool option) (exclude : string seq option) (eligible : string seq option) =
         async {
-            match (processPrefix prefixes topic) with //Check if topic is valid with respect to already registered prefixes
+            match (processPrefix !prefixes topic) with //Check if topic is valid with respect to already registered prefixes
                 | None -> raise (InvalidTopicException(topic))
                 | _ ->
                     let excludeMe = excludeMe |> Option.bind (fun b -> if b then (!sessionId) else None)
@@ -51,7 +51,7 @@ type WampClient(host : string, port : int) =
     member this.Call(procURI : string, [<ParamArray>] arr : string array) =
         let tcs = new TaskCompletionSource<_>()
         async {
-            match (processPrefix prefixes procURI) with //Check if rpcUri is valid with respect to already registered prefixes
+            match (processPrefix !prefixes procURI) with //Check if rpcUri is valid with respect to already registered prefixes
                 | None -> raise (InvalidRpcUriException(procURI))
                 | _ ->
                     let callId = Guid.NewGuid().ToString("n")
@@ -64,7 +64,7 @@ type WampClient(host : string, port : int) =
     member this.Subscribe(topic : string) =
         let event = new Event<string>()
         async {
-            match (processPrefix prefixes topic) with //Check if topic is valid with respect to already registered prefixes
+            match (processPrefix !prefixes topic) with //Check if topic is valid with respect to already registered prefixes
                 | None -> raise (InvalidTopicException(topic))
                 | Some(uri) ->
                     let msg = subscribeMessage topic
@@ -75,7 +75,7 @@ type WampClient(host : string, port : int) =
 
     member this.Unsubscribe(topic : string) =
         async {
-            match (processPrefix prefixes topic) with //Check if topic is valid with respect to already registered prefixes
+            match (processPrefix !prefixes topic) with //Check if topic is valid with respect to already registered prefixes
                 | None -> raise (InvalidTopicException(topic))
                 | Some(uri) ->
                     let msg = unSubscribeMessage topic
