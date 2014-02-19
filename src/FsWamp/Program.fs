@@ -14,7 +14,8 @@ let main argv =
     let host = "localhost"
     async {
         let cts = new System.Threading.CancellationTokenSource()
-        do! server host 16000 cts.Token
+        let rpcMappings = Map([("http://localhost/simple/calc#add",(List.map int >> List.sum >> string >> Some))])
+        do! server host 16000 cts.Token rpcMappings
     } |> Async.Start
     printfn "Press enter to exit"
     System.Console.ReadLine() |> ignore

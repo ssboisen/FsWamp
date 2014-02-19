@@ -60,3 +60,7 @@ let processPrefix prefixes (uriOrCurie : string) =
 module Option =
     let getAndMapWithFallBack f v = function Some(v) -> f v | None -> v
     let getWithfallBack v = function Some(v) -> v | None -> v
+
+module Event =
+    let trigger evt (e : Event<_>) =
+        e.Trigger(evt)

@@ -21,6 +21,18 @@ type Subscriber = { SessionId : string; Socket : WebSockets.WebSocket }
                     override this.GetHashCode() =
                         this.SessionId.GetHashCode()
 
+let private processCall rpcMappings prefixes procUri args callId =
+    let uri = processPrefix prefixes procUri
+    let dispatcher = uri |> Option.bind (fun u -> rpcMappings |> Map.tryFind u)
+    match dispatcher with
+        | Some(dispatchFunc) ->
+            try
+                let res = dispatchFunc args
+                res |> callResultMessage callId
+            with
+                | _ -> callErrorMessage callId "error#exception" (sprintf "Exception while processing uri: %s" procUri) (sprintf "Args: %A" args)
+        | _ -> callErrorMessage callId "error#generic" (sprintf "Unable to process uri: %s" procUri) (sprintf "Args: %A" args)
+
 let private processContext (context : HttpListenerContext) subscribers rpcMappings ct =
     async {
         let! wsContext = context.AcceptWebSocketAsync(null) |> Async.AwaitTask
@@ -32,6 +44,7 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
         do! welcome |> replyMessage
 
         let rec loop prefixes subs =
+            let processCall = processCall rpcMappings prefixes
             async {
               if not ct.IsCancellationRequested then
                   let! msg = recv wsContext.WebSocket ct
@@ -42,23 +55,9 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
                                 return! loop (prefixes |> Map.add prefix uri) subs
 
                               | CALL (callId, procUri, args) ->
-                                  let uri = processPrefix prefixes procUri
-                                  let dispatcher = uri |> Option.bind (fun u -> rpcMappings |> Map.tryFind u)
-                                  match dispatcher with
-                                      | Some(dispatchFunc) ->
-                                          try
-                                              let res = dispatchFunc args
-                                              let callResult = res |> callResultMessage callId
-                                              do! callResult |> replyMessage
-                                          with
-                                              | _ ->
-                                                  let callError = callErrorMessage callId "error#exception" (sprintf "Exception while processing uri: %s" procUri) (sprintf "Args: %A" args)
-                                                  do! callError |> replyMessage
-                                          return! loop prefixes subs
-                                      | _ ->
-                                          let callError = callErrorMessage callId "error#generic" (sprintf "Unable to process uri: %s" procUri) (sprintf "Args: %A" args)
-                                          do! callError |> replyMessage
-                                          return! loop prefixes subs
+                                  let msg = processCall procUri args callId
+                                  do! msg |> replyMessage
+                                  return! loop prefixes subs
 
                               | PUBLISH (topicUri, event, excludeMe, excludes, eligible) ->
                                   let topic = processPrefix prefixes topicUri
@@ -102,18 +101,15 @@ let private processContext (context : HttpListenerContext) subscribers rpcMappin
 
 
 
-let server host port ct =
+let server host port ct rpcMappings =
     let listener = new HttpListener();
     let uri = sprintf "http://%s:%i/" host port
     listener.Prefixes.Add(uri);
     listener.Start();
     let subscribers = atom Map.empty<string, Subscriber Set>
-    let rpcMappings = Map.empty<string, string list -> string option>
-    let rpcMappings = Map.add "http://localhost/simple/calc#add" (List.map int >> List.sum >> string >> Some) rpcMappings
     let rec listen (ct : CancellationToken) =
         async {
             try
-                printfn "Listening on %s" uri
                 let! context = listener.GetContextAsync() |> Async.AwaitTask
                 if context.Request.IsWebSocketRequest then
                     processContext context subscribers rpcMappings ct |> Async.Start
@@ -125,5 +121,6 @@ let server host port ct =
             with | :? OperationCanceledException -> printfn "Cancellation requested"; return()
         }
 
+    printfn "Listening on %s" uri
     listen ct
 

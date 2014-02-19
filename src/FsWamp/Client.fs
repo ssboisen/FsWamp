@@ -25,35 +25,28 @@ module Client =
                                         sessionId |> reset (Some(sId)) |> ignore
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | CALLRESULT (callId, result) ->
-                                        !callIdMap
-                                            |> Map.tryFind callId
-                                            |> function
-                                                | Some(tcs) ->
-                                                    tcs.SetResult(result)
-                                                    callIdMap |> swap (fun m -> m |> Map.remove callId) |> ignore
-                                                | None -> printfn "Could not find call-id: %s" callId
+                                        Map.tryFind callId !callIdMap
+                                        |> function
+                                            | Some(tcs) ->
+                                                tcs.SetResult(result)
+                                                callIdMap |> swap (fun m -> m |> Map.remove callId) |> ignore
+                                            | None -> printfn "Could not find call-id: %s" callId
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | CALLERROR (callId, errorUri, errorDesc, errorDetails) ->
-                                        !callIdMap
-                                            |> Map.tryFind callId
-                                            |> function
-                                                | Some(tcs) ->
-                                                    tcs.SetException(new InvalidWampRpcCallException(callId, errorUri, errorDesc, errorDetails))
-                                                    callIdMap |> swap (fun m -> m |> Map.remove callId) |> ignore
-                                                | None -> ()
+                                        Map.tryFind callId !callIdMap
+                                        |> function
+                                            | Some(tcs) ->
+                                                tcs.SetException(new InvalidWampRpcCallException(callId, errorUri, errorDesc, errorDetails))
+                                                callIdMap |> swap (fun m -> m |> Map.remove callId) |> ignore
+                                            | None -> ()
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
                                     | EVENT (topicUri, event) ->
-                                        let map = !topicMap
-                                        map
-                                            |> Map.tryFind topicUri
-                                            |> function
-                                                | Some(subscribers) ->
-                                                    subscribers |> List.iter (fun e ->
-                                                    e.Trigger(event)
-                                                    )
-                                                | None -> ()
+                                        Map.tryFind topicUri !topicMap
+                                        |> function
+                                            | Some(subscribers) -> List.iter (Event.trigger event) subscribers
+                                            | None -> ()
                                         return! reciveLoop wsc callIdMap topicMap sessionId ct
-                                    | _ -> printfn "Got unknown message"
+                                    | _ -> printfn "Got unknown message: %A" msg
                             | None -> return! reciveLoop wsc callIdMap topicMap sessionId ct
                     with
                         | :? OperationCanceledException -> printfn "Cancellation requested"; return()
