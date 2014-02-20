@@ -9,8 +9,23 @@ using NUnit.Framework;
 namespace FsWamp.CSharpTests
 {
     [TestFixture]
-    public class FsWampCSharpFacadeTests
+    public class WampClientTests
     {
+        private WampServer _wampServer;
+
+        [TestFixtureSetUp]
+        public void SetUp()
+        {
+            _wampServer = new WampServer("localhost", 16000);
+            _wampServer.Start();
+        }
+
+        [TestFixtureTearDown]
+        public void TearDown()
+        {
+            ((IDisposable)_wampServer).Dispose();
+        }
+
         [Test]
         [TestCase(10d)]
         [TestCase(100d)]

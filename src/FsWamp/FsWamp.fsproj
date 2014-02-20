@@ -48,6 +48,7 @@
     <Compile Include="Server.fs" />
     <Compile Include="Client.fs" />
     <Compile Include="WampClient.fs" />
+    <Compile Include="WampServer.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <PropertyGroup>
